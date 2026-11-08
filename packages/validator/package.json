@@ -1,0 +1,2 @@
+{ "name": "@screens/validator", "private": true, "type": "module", "exports": { ".": "./src/index.ts" },
+  "dependencies": { "playwright-core": "^1.65.0" } }

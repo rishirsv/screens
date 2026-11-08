@@ -1,0 +1,1 @@
+{ "name": "@screens/frames", "private": true, "type": "module", "exports": { ".": "./src/index.ts", "./inline": "./src/inline.ts" } }

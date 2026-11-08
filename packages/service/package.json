@@ -1,0 +1,2 @@
+{ "name": "@screens/service", "private": true, "type": "module", "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@screens/validator": "*", "perfect-freehand": "^1.2.3", "ws": "^8.22.1", "esbuild": "^0.28.2" } }

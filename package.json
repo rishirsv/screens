@@ -1,0 +1,34 @@
+{
+  "name": "screens",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "screens": "packages/service/src/cli.ts"
+  },
+  "scripts": {
+    "start": "node packages/service/src/cli.ts serve",
+    "mcp": "node packages/mcp/src/main.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p packages/canvas/src/engine/tsconfig.json --noEmit",
+    "screens-cli": "node packages/cli/src/main.ts",
+    "test": "node --test packages/*/src/**/*.test.ts",
+    "release:build": "node release/build.mjs",
+    "release:verify": "node release/verify.mjs",
+    "release:plugins": "node release/plugins.mjs",
+    "release": "node release/release.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "playwright-core": "^1.65.0",
+    "typescript": "^7.0.2"
+  }
+}

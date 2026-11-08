@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Screens</title>
+  <path fill="#0642ef" d="M5 10h38v27H5z"/>
+  <path fill="#c2a0f5" d="M13 20h38v25H13z"/>
+  <path fill="#8269f5" d="M13 20h30v17H13z"/>
+  <path fill="#ff716d" d="M21 30h38v24H21z"/>
+  <path fill="#d45faa" d="M21 30h30v15H21z"/>
+  <path fill="#b53cb0" d="M21 30h22v7H21z"/>
+</svg>

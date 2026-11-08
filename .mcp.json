@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "screens-dev": {
+      "command": "node",
+      "args": ["packages/mcp/src/main.ts"],
+      "env": { "SCREENS_HOME": ".screens-dev" }
+    }
+  }
+}

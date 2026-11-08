@@ -1,0 +1,29 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "screens",
+  "version": "0.1.17",
+  "description": "A local canvas where you and your agent create, arrange and comment on HTML designs.",
+  "author": {
+    "name": "Rishi Sharma"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Screens",
+        "shortDescription": "Design on a local canvas with your agent",
+        "longDescription": "A local canvas where you and your agent create, arrange and comment on HTML designs.",
+        "developerName": "Rishi Sharma",
+        "category": "Productivity",
+        "logo": "./assets/screens-icon.svg",
+        "logoDark": "./assets/screens-icon.svg",
+        "composerIcon": "./assets/screens-icon.svg",
+        "composerIconDark": "./assets/screens-icon.svg",
+        "defaultPrompt": [
+          "Design three directions for a sign-in screen in Screens",
+          "Put this page's main states on a Screen",
+          "Address the open comments on my Screen"
+        ]
+      }
+    }
+  }
+}

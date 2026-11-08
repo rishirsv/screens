@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "screens": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@rishirsv/screens@0.1.17",
+        "mcp"
+      ]
+    }
+  }
+}

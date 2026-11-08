@@ -1,0 +1,33 @@
+{
+  "name": "@rishirsv/screens",
+  "version": "0.1.17",
+  "description": "A local canvas where you and your coding agent create, arrange and comment on HTML designs.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rishirsv/screens.git"
+  },
+  "homepage": "https://github.com/rishirsv/screens#readme",
+  "bugs": "https://github.com/rishirsv/screens/issues",
+  "type": "module",
+  "bin": {
+    "screens": "screens.js"
+  },
+  "files": [
+    "screens.js",
+    "mcp.js",
+    "service.js",
+    "sidebar.svg",
+    "ui",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "playwright-core": "1.65.0",
+    "ws": "8.22.1"
+  },
+  "license": "MIT"
+}
