@@ -74,6 +74,8 @@ export const FIXTURES: Readonly<Record<string, () => BundleFile[]>> = {
   ],
   /** No scripts: piece edits to it save without the load check. Every piece is marked, so blocks can name them. */
   pieces: () => [{ path: "index.html", content: html(`<header data-pid="hdr" style="padding: 12px; background-color: #4f46e5; color: #fff">Plantly</header><h1 data-pid="ttl">Water your plants</h1><div class="card" data-pid="am" style="background-color: #fff; padding: 8px">Monstera</div><div class="card" data-pid="pm" style="background-color: #fff; padding: 8px">Fiddle</div><button data-pid="cta" style="background-color: #4f46e5; color: #fff; padding: 10px">Water now</button><footer data-pid="ftr">Help</footer>`) }],
+  /** A 1920x1080 slide with no scripts: a layout wrapper around a section of text, and a free (absolutely positioned) badge. */
+  slide: () => [{ path: "index.html", content: html(`<div class="slide" data-pid="wrap"><section data-pid="copy"><h1 data-pid="ttl" style="font-size: 96px; margin: 0">Revenue grew</h1><p data-pid="sub" style="font-size: 40px; margin: 24px 0 0">Up 10% on the year</p></section></div><div data-pid="badge" data-name="Badge" style="position: absolute; left: 1500px; top: 80px; width: 240px; height: 120px; background-color: #1db954"></div>`, `<style>body{margin:0;font-family:system-ui}.slide{padding:120px}</style>`) }],
   plain: () => [{ path: "index.html", content: html(`<h1>Checkout</h1><p id="status">Ready</p><button id="buy" onclick="document.getElementById('status').textContent='Thanks!'">Buy</button>`) }],
   modules: () => [
     { path: "index.html", content: html(`<h1 id="out">loading</h1>`, `<script type="module" src="app.js"></script>`) },

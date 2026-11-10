@@ -88,17 +88,72 @@ export function inlineBundle(entry: string, manifest: AssetManifest, read: (hash
   return { html, diagnostics, bytes: new TextEncoder().encode(html).length };
 }
 
-/** Runs inside the opaque child before any snapshot script. Posts only allowlisted shapes. */
+/** Runs inside the opaque child before any snapshot script. Posts only allowlisted shapes.
+ *  The canvas drives piece editing: it says which pieces are selected, and may start or end a text edit on one. Selected
+ *  pieces move by drag or arrow keys and one resizes by its handles; a drag from a group or the background draws a marquee.
+ *  A piece in the page's flow moves by a relative offset, so the layout around it holds. The page only reports what happened. */
 export const CHILD_BRIDGE = `(()=>{const p=(m)=>parent.postMessage(m,"*");
 addEventListener("load",()=>p({kind:"ready"}));
 addEventListener("error",(e)=>{if(e.target===window)p({kind:"error",message:String(e.message||"error").slice(0,200)})});
-addEventListener("pointerdown",(e)=>{const t=e.target&&e.target.closest?e.target.closest("[data-pid]"):null;p({kind:"pointer",x:e.clientX,y:e.clientY,pid:t?t.getAttribute("data-pid"):null})},true);
-let hl=null,hp=null;const box=()=>{if(!hl)return;const el=hp&&document.querySelector('[data-pid="'+hp+'"]');const r=el&&el.getBoundingClientRect();if(!r||!r.width){hl.style.display="none";return}
-Object.assign(hl.style,{display:"block",left:r.left-2+"px",top:r.top-2+"px",width:r.width+4+"px",height:r.height+4+"px"});};
-addEventListener("message",(e)=>{const d=e.data;if(e.source!==parent||!d||d.kind!=="highlight")return;hp=typeof d.pid==="string"&&/^[a-z][a-z0-9-]{0,23}$/.test(d.pid)?d.pid:null;
-if(!hl){hl=document.createElement("div");hl.setAttribute("aria-hidden","true");hl.style.cssText="position:fixed;z-index:2147483647;pointer-events:none;border:2px solid #2a74f5;border-radius:2px;display:none";document.documentElement.appendChild(hl)}
-box();const el=hp&&document.querySelector('[data-pid="'+hp+'"]');const r=el&&el.getBoundingClientRect();p({kind:"rect",pid:hp,w:r?Math.round(r.width):0,h:r?Math.round(r.height):0})});
-addEventListener("scroll",box,true);addEventListener("resize",box);
+const PID=/^[a-z][a-z0-9-]{0,23}$/,at=(pid)=>pid?document.querySelector('[data-pid="'+pid+'"]'):null,piece=(t)=>t&&t.closest?t.closest("[data-pid]"):null,pidOf=(el)=>el.getAttribute("data-pid");
+const free=(el)=>/absolute|fixed/.test(getComputedStyle(el).position),px=(v,d)=>{const n=parseFloat(v);return isFinite(n)?n:d};
+// Table parts are placed by their table: they take text and styles, never a position or a size of their own.
+const fixed=(el)=>/^(TD|TH|TR|TBODY|THEAD|TFOOT)$/.test(el.tagName);
+const TOP="position:fixed;z-index:2147483647;pointer-events:none;display:none;",OUT=TOP+"box-sizing:border-box;border:0 solid #2a74f5;border-radius:2px";
+const mk=(css,into)=>{const d=document.createElement("div");d.setAttribute("aria-hidden","true");d.style.cssText=css;(into||document.documentElement).appendChild(d);return d};
+let zoom=1,sel=[],boxes=[],grips=null,mq=null,ed=null,was="",ring="",press=null,queued=false,nudged=null,nudgeTimer=0;
+// The outline and handles keep their size on screen: k is page pixels per screen pixel at the canvas zoom.
+const box=()=>{const k=1/zoom,o=1.5*k;sel.forEach((pid,i)=>{const b=boxes[i]||(boxes[i]=mk(OUT)),el=at(pid),r=el&&el.getBoundingClientRect();if(!r||!r.width){b.style.display="none";return}
+Object.assign(b.style,{display:"block",borderWidth:o+"px",left:r.left-o+"px",top:r.top-o+"px",width:r.width+2*o+"px",height:r.height+2*o+"px"})});
+for(let i=sel.length;i<boxes.length;i++)boxes[i].style.display="none";
+if(boxes[0]&&!grips){grips=mk("position:absolute;inset:0;display:none",boxes[0]);
+for(const d of ["nw","n","ne","e","se","s","sw","w"]){const g=mk("position:absolute;box-sizing:border-box;border:0 solid #2a74f5;background:#fff;pointer-events:auto;touch-action:none;cursor:"+d+"-resize;left:"+(d.includes("w")?0:d.includes("e")?100:50)+"%;top:"+(d.includes("n")?0:d.includes("s")?100:50)+"%",grips);g.dataset.grip=d}}
+const one=sel.length===1?at(sel[0]):null;if(!grips)return;grips.style.display=one&&!ed&&!fixed(one)?"block":"none";grips.style.inset=-o+"px";
+for(const g of grips.children)Object.assign(g.style,{width:9*k+"px",height:9*k+"px",margin:-4.5*k+"px",borderWidth:1.5*k+"px",borderRadius:2*k+"px"})};
+const send=()=>{const el=sel.length===1?at(sel[0]):null,r=el&&el.getBoundingClientRect(),cs=el&&getComputedStyle(el);
+p({kind:"rect",pid:el?sel[0]:null,x:r?r.left:0,y:r?r.top:0,w:r?Math.round(r.width):0,h:r?Math.round(r.height):0,size:cs?px(cs.fontSize,0):0,weight:cs?parseInt(cs.fontWeight)||400:0,italic:!!cs&&cs.fontStyle!=="normal",
+align:cs?cs.textAlign:"",color:cs?cs.color:"",fill:cs?cs.backgroundColor:"",font:cs?cs.fontFamily:"",fit:cs?cs.objectFit:"",free:!!el&&free(el),
+fonts:[...new Set([...document.fonts].map((f)=>String(f.family).replace(/["']/g,"")))].slice(0,12)})};
+const follow=()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;box();if(sel.length)send()})};
+// Where a piece starts a move or resize from, and how its position is written: left and top, absolute or as an offset.
+const start=(el)=>{const cs=getComputedStyle(el),f=free(el);return{el,pid:pidOf(el),rel:!f,l:px(cs.left,f?el.offsetLeft:0),t:px(cs.top,f?el.offsetTop:0),w:px(cs.width,el.offsetWidth),h:px(cs.height,el.offsetHeight),moved:false,wide:false,tall:false}};
+const starts=()=>sel.map(at).filter((el)=>el&&!fixed(el)).map(start);
+const put=(s,l,t)=>{const st=s.el.style;if(s.rel&&getComputedStyle(s.el).position==="static")st.position="relative";st.left=Math.round(l)+"px";st.top=Math.round(t)+"px";if(!s.rel){st.right="auto";st.bottom="auto"}s.moved=true};
+const report=(list)=>{p({kind:"move",items:list.map((s)=>({pid:s.pid,rel:s.rel,x:s.moved?px(s.el.style.left,0):null,y:s.moved?px(s.el.style.top,0):null,w:s.wide?px(s.el.style.width,0):null,h:s.tall?px(s.el.style.height,0):null}))});send()};
+const finish=(keep)=>{const el=ed;if(!el)return;ed=null;el.removeEventListener("blur",blur);el.removeAttribute("contenteditable");el.style.outline=ring;
+const text=el.textContent||"";if(!keep)el.textContent=was;p({kind:"text",pid:pidOf(el),text:keep&&text!==was?text.slice(0,20000):null});box();if(sel.length)send()};
+const blur=()=>finish(true);
+addEventListener("pointerdown",(e)=>{const t=piece(e.target),grip=e.target&&e.target.dataset?e.target.dataset.grip:null;
+if(!grip)p({kind:"pointer",x:e.clientX,y:e.clientY,pid:t?pidOf(t):null,shift:e.shiftKey});
+if(ed||e.button!==0)return;const at0={x:e.clientX,y:e.clientY,on:false};
+if(grip){press={...at0,mode:"size",dir:grip,list:starts()};e.preventDefault()}
+// A press on a group or on the background draws a marquee; on anything else it moves the selection once the press has selected it.
+else if(!t||t.querySelector("[data-pid]"))press={...at0,mode:"marquee"};
+else if(!fixed(t))press={...at0,mode:"move",pid:pidOf(t),list:null}},true);
+addEventListener("pointermove",(e)=>{const d=press;if(!d)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;
+if(!d.on){if(Math.abs(dx)+Math.abs(dy)<4)return;if(d.mode==="move"){if(!sel.includes(d.pid))return;d.list=starts()}d.on=true;getSelection().removeAllRanges()}
+e.preventDefault();
+if(d.mode==="marquee"){if(!mq)mq=mk(TOP+"border:1px solid #2a74f5;background:rgba(42,116,245,.12)");
+Object.assign(mq.style,{display:"block",left:Math.min(d.x,e.clientX)+"px",top:Math.min(d.y,e.clientY)+"px",width:Math.abs(dx)+"px",height:Math.abs(dy)+"px"});return}
+for(const s of d.list){if(d.mode==="move"){put(s,s.l+dx,s.t+dy);continue}
+const g=d.dir,st=s.el.style;if(/[ew]/.test(g)){st.width=Math.max(8,Math.round(s.w+(g.includes("w")?-dx:dx)))+"px";s.wide=true}
+if(/[ns]/.test(g)){st.height=Math.max(8,Math.round(s.h+(g.includes("n")?-dy:dy)))+"px";s.tall=true}
+if(/[nw]/.test(g))put(s,s.l+(g.includes("w")?dx:0),s.t+(g.includes("n")?dy:0))}box()},true);
+const drop=(e)=>{const d=press;press=null;if(!d||!d.on)return;if(d.mode!=="marquee"){report(d.list);return}
+mq.style.display="none";const x0=Math.min(d.x,e.clientX),y0=Math.min(d.y,e.clientY),x1=Math.max(d.x,e.clientX),y1=Math.max(d.y,e.clientY);
+// Every piece wholly inside the marquee, without the pieces inside one already taken.
+const inside=[...document.querySelectorAll("[data-pid]")].filter((el)=>{const r=el.getBoundingClientRect();return r.width>0&&r.left>=x0&&r.right<=x1&&r.top>=y0&&r.bottom<=y1});
+p({kind:"select",pids:inside.filter((el)=>!inside.some((o)=>o!==el&&o.contains(el))).slice(0,50).map(pidOf)})};
+addEventListener("pointerup",drop,true);addEventListener("pointercancel",drop,true);
+addEventListener("dblclick",(e)=>{const t=piece(e.target);if(t&&!ed)p({kind:"dbl",pid:pidOf(t)})},true);
+addEventListener("message",(e)=>{const d=e.data;if(e.source!==parent||!d)return;const pid=typeof d.pid==="string"&&PID.test(d.pid)?d.pid:null;
+if(d.kind==="commit"){finish(true);return}
+if(d.kind==="edit"){const el=at(pid);if(!el||ed)return;ed=el;was=el.textContent||"";ring=el.style.outline;el.style.outline="none";
+try{el.contentEditable="plaintext-only"}catch(_){el.contentEditable="true"}el.focus();
+const s=getSelection();if(!s.rangeCount||!el.contains(s.anchorNode)){const r=document.createRange();r.selectNodeContents(el);s.removeAllRanges();s.addRange(r)}
+el.addEventListener("blur",blur);box();return}
+if(d.kind!=="highlight")return;if(typeof d.zoom==="number"&&d.zoom>0.01)zoom=d.zoom;sel=Array.isArray(d.pids)?d.pids.filter((x)=>typeof x==="string"&&PID.test(x)).slice(0,50):[];box();send()});
+addEventListener("scroll",follow,true);addEventListener("resize",follow);
 // Only scrollingElement scrolls the viewport. Body overflow can propagate to it, without making body a scroll container.
 const room=(el,dx,dy)=>{const root=document.documentElement,body=document.body,scroller=document.scrollingElement,rs=getComputedStyle(root);
 const fromBody=body&&getComputedStyle(body).display!=="none"&&rs.overflowX==="visible"&&rs.overflowY==="visible",vs=fromBody?getComputedStyle(body):rs;
@@ -107,5 +162,12 @@ const sy=top?!/hidden|clip/.test(cs.overflowY):/auto|scroll|overlay/.test(cs.ove
 if(sy&&dy&&(dy>0?n.scrollTop+n.clientHeight<n.scrollHeight-1:n.scrollTop>0))return true;if(sx&&dx&&(dx>0?n.scrollLeft+n.clientWidth<n.scrollWidth-1:n.scrollLeft>0))return true}return false};
 addEventListener("wheel",(e)=>{if(e.ctrlKey||e.metaKey){e.preventDefault();p({kind:"zoom",x:e.clientX,y:e.clientY,dy:e.deltaY,pinch:e.ctrlKey&&!e.metaKey});return}
 const k=e.deltaMode===1?16:e.deltaMode===2?innerHeight:1,dx=e.deltaX*k,dy=e.deltaY*k;if(room(e.target,dx,dy))return;e.preventDefault();p({kind:"pan",dx,dy})},{passive:false,capture:true});
-addEventListener("keydown",(e)=>{if(e.key==="Escape")p({kind:"escape"})},true);})();`;
-
+addEventListener("keydown",(e)=>{if(ed){e.stopPropagation();if(e.key==="Escape"){e.preventDefault();finish(false)}else if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();finish(true)}return}
+// Arrow keys nudge the selection, ten pixels with Shift. A run of presses is reported once it pauses, as one move.
+const dir={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+if(dir&&sel.length&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();e.stopPropagation();const k=e.shiftKey?10:1;
+if(!nudged)nudged={list:starts(),x:0,y:0};nudged.x+=dir[0]*k;nudged.y+=dir[1]*k;for(const s of nudged.list)put(s,s.l+nudged.x,s.t+nudged.y);box();
+clearTimeout(nudgeTimer);nudgeTimer=setTimeout(()=>{const n=nudged;nudged=null;if(n&&n.list.length)report(n.list)},350);return}
+// The person's undo and redo belong to the canvas, which cannot see keys pressed in here.
+if((e.metaKey||e.ctrlKey)&&!e.altKey&&e.key.toLowerCase()==="z"){e.preventDefault();p({kind:"history",redo:e.shiftKey});return}
+if(e.key==="Escape")p({kind:"escape"})},true);})();`;

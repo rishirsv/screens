@@ -41,6 +41,16 @@ const paths: Record<string, string> = {
   click: "M9 9l5 12 1.8-5.2L21 14ZM7.2 2.2 8 5.1M5.1 8l-2.9-.8M14 4.1 12 6M6 12l-1.9 2",
   "folder-plus": "M12 10v6M9 13h6M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
   upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12",
+  bold: "M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8",
+  italic: "M19 4h-9M14 20H5M15 4 9 20",
+  "align-left": "M21 6H3M15 12H3M17 18H3",
+  "align-center": "M21 6H3M17 12H7M19 18H5",
+  "align-right": "M21 6H3M21 12H9M21 18H7",
+  crop: "M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2",
+  table: "M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 3v18M3 9h18M3 15h18",
+  circle: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
+  "row-plus": "M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6H3zM12 15v6M9 18h6",
+  "column-plus": "M3 5a2 2 0 0 1 2-2h6v18H5a2 2 0 0 1-2-2zM15 12h6M18 9v6",
   select: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
 };
 

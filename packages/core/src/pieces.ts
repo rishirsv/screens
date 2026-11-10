@@ -6,7 +6,7 @@
 
 /** Elements that become pieces without being marked. Any element with a data-pid is a piece too. */
 export const PIECE_TAGS: ReadonlySet<string> = new Set([
-  "header", "footer", "main", "nav", "section", "article", "aside", "div", "form", "fieldset", "ul", "ol", "li", "dl", "table", "tr",
+  "header", "footer", "main", "nav", "section", "article", "aside", "div", "form", "fieldset", "ul", "ol", "li", "dl", "table", "tr", "td", "th",
   "figure", "h1", "h2", "h3", "h4", "h5", "h6", "p", "a", "button", "img", "picture", "video", "audio", "canvas", "svg", "input",
   "textarea", "select", "label", "blockquote", "pre", "hr",
 ]);

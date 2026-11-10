@@ -199,6 +199,36 @@ body { background: var(--window); color: var(--text); font: var(--text-md) / var
 .screens-details .field-row .screens-input { flex: 1; height: 24px; resize: none; }
 .screens-details .screens-swatch { flex: none; width: 14px; height: 14px; border-radius: 4px; box-shadow: 0 0 0 0.5px var(--line); }
 
+/* Focus actions sit on a slide of any color, so they share the toolbars' own surface instead of a translucent fill. */
+.screens-focus-actions { gap: 2px; }
+.screens-focus-actions .button { background: transparent; box-shadow: none; }
+.screens-focus-actions .button[aria-expanded="true"] { background: var(--control-active); }
+@media (hover: hover) {
+  .screens-focus-actions .button:hover { background: var(--control-hover); }
+}
+
+/* Slide filmstrip: below the stage while a slide is focused */
+:root { --filmstrip-height: 84px; }
+.screens-stage[data-filmstrip] { bottom: var(--filmstrip-height); }
+.screens-slidestrip { position: fixed; right: 0; bottom: 0; left: 0; z-index: 1; display: flex; align-items: center; justify-content: safe center; gap: var(--space-2); height: var(--filmstrip-height); padding: 0 var(--space-3); overflow: auto hidden; scrollbar-width: none; border-top: 1px solid var(--line-subtle); background: var(--sidebar); user-select: none; -webkit-user-select: none; }
+.screens-slide-thumb { position: relative; flex: none; width: 104px; height: 58.5px; overflow: hidden; border-radius: 6px; background: var(--frame-bg); box-shadow: 0 0 0 1px var(--line); transition: box-shadow var(--duration-control); }
+.screens-slide-thumb[aria-current="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.screens-slide-thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.screens-slide-number { position: absolute; bottom: 3px; left: 3px; min-width: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--surface-float); color: var(--text-secondary); font-size: 10px; font-variant-numeric: tabular-nums; line-height: 16px; text-align: center; }
+
+/* Format bar (focus mode): the selected piece's controls, placed beside it by the editor */
+.chrome.screens-format { top: 0; left: 0; z-index: 30; gap: 1px; max-width: calc(100% - 16px); overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+.screens-format .tool { width: var(--control-md); height: var(--control-md); }
+.screens-format-font { flex: none; max-width: 136px; height: var(--control-md); padding: 0 8px 0 10px; border: 0; border-radius: var(--radius-pill); outline: 0; appearance: none; background: transparent; color: var(--text); font: inherit; text-overflow: ellipsis; }
+.screens-format-size { flex: none; width: 36px; height: var(--control-md); padding: 0; border: 0; border-radius: var(--radius-xs); outline: 0; background: transparent; color: var(--text); font: inherit; font-variant-numeric: tabular-nums; text-align: center; }
+.screens-format-size:focus, .screens-format-font:focus-visible { background: var(--control); box-shadow: 0 0 0 1.5px var(--accent); }
+@media (hover: hover) {
+  .screens-format-font:hover, .screens-format-size:hover { background: var(--control-hover); }
+}
+.screens-format-color { position: relative; cursor: pointer; }
+.screens-format-color input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.screens-format-color .screens-swatch.fill { border-radius: 4px; }
+
 /* Canvas tools share the bottom baseline with page and zoom controls. */
 .chrome.screens-tools { flex-direction: column-reverse; max-width: calc(100vw - 2 * var(--chrome-inset)); }
 .chrome.screens-tools[data-dock="top-center"] { flex-direction: column; }

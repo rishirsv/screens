@@ -26,15 +26,22 @@ function hostPage(child: string, canvasOrigin: string, gen: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:#fff}iframe{display:block;border:0;width:100%;height:100%}</style></head><body>
 <iframe id="c" sandbox="allow-scripts" srcdoc="${attr}"></iframe>
 <script>(()=>{const c=document.getElementById("c"),gen=${JSON.stringify(gen)},to=${JSON.stringify(canvasOrigin)};
-const num=(v)=>typeof v==="number"&&isFinite(v)?v:0;const pid=(v)=>typeof v==="string"&&/^[a-z][a-z0-9-]{0,23}$/.test(v)?v:null;
-addEventListener("message",(e)=>{if(e.source!==parent||e.origin!==to||!e.data||e.data.gen!==gen||e.data.kind!=="highlight")return;c.contentWindow.postMessage({kind:"highlight",pid:pid(e.data.pid)},"*");});
+const num=(v)=>typeof v==="number"&&isFinite(v)?v:0;const pid=(v)=>typeof v==="string"&&/^[a-z][a-z0-9-]{0,23}$/.test(v)?v:null;const str=(v,n)=>typeof v==="string"?v.slice(0,n):"";const opt=(v)=>typeof v==="number"&&isFinite(v)?v:null;
+addEventListener("message",(e)=>{if(e.source!==parent||e.origin!==to||!e.data||e.data.gen!==gen||!["highlight","edit","commit","focus"].includes(e.data.kind))return;
+// Keyboard focus handed to this page belongs to the object inside it.
+if(e.data.kind==="focus"){c.focus();return}c.contentWindow.postMessage({kind:e.data.kind,pid:pid(e.data.pid),pids:Array.isArray(e.data.pids)?e.data.pids.slice(0,50).map(pid).filter(Boolean):[],zoom:num(e.data.zoom)},"*");});
 addEventListener("message",(e)=>{if(e.source!==c.contentWindow||e.origin!=="null"||!e.data||typeof e.data!=="object"||Array.isArray(e.data))return;const d=e.data;
 // Children have no routing authority. The host supplies identity and generation.
 if("itemId" in d||"gen" in d)return;
 if(d.kind==="ready")parent.postMessage({kind:"ready",gen},to);
 else if(d.kind==="error")parent.postMessage({kind:"failed",gen,message:String(d.message).slice(0,200)},to);
-else if(d.kind==="pointer")parent.postMessage({kind:"pointer",gen,x:num(d.x),y:num(d.y),pid:pid(d.pid)},to);
-else if(d.kind==="rect")parent.postMessage({kind:"rect",gen,pid:pid(d.pid),w:num(d.w),h:num(d.h)},to);
+else if(d.kind==="pointer")parent.postMessage({kind:"pointer",gen,x:num(d.x),y:num(d.y),pid:pid(d.pid),shift:d.shift===true},to);
+else if(d.kind==="select")parent.postMessage({kind:"select",gen,pids:Array.isArray(d.pids)?d.pids.slice(0,50).map(pid).filter(Boolean):[]},to);
+else if(d.kind==="rect")parent.postMessage({kind:"rect",gen,pid:pid(d.pid),x:num(d.x),y:num(d.y),w:num(d.w),h:num(d.h),size:num(d.size),weight:num(d.weight),italic:d.italic===true,align:str(d.align,16),color:str(d.color,64),fill:str(d.fill,64),font:str(d.font,200),fit:str(d.fit,16),free:d.free===true,fonts:Array.isArray(d.fonts)?d.fonts.slice(0,12).map((f)=>str(f,64)):[]},to);
+else if(d.kind==="history")parent.postMessage({kind:"history",gen,redo:d.redo===true},to);
+else if(d.kind==="dbl")parent.postMessage({kind:"dbl",gen,pid:pid(d.pid)},to);
+else if(d.kind==="text")parent.postMessage({kind:"text",gen,pid:pid(d.pid),text:typeof d.text==="string"?d.text.slice(0,20000):null},to);
+else if(d.kind==="move")parent.postMessage({kind:"move",gen,items:Array.isArray(d.items)?d.items.slice(0,50).map((m)=>m&&typeof m==="object"?{pid:pid(m.pid),rel:m.rel===true,x:opt(m.x),y:opt(m.y),w:opt(m.w),h:opt(m.h)}:null).filter((m)=>m&&m.pid):[]},to);
 else if(d.kind==="zoom")parent.postMessage({kind:"zoom",gen,x:num(d.x),y:num(d.y),dy:num(d.dy),pinch:d.pinch===true},to);
 else if(d.kind==="pan")parent.postMessage({kind:"pan",gen,dx:num(d.dx),dy:num(d.dy)},to);
 else if(d.kind==="escape")parent.postMessage({kind:"escape",gen},to);});})();</script></body></html>`;
