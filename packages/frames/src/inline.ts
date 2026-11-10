@@ -117,7 +117,8 @@ fonts:[...new Set([...document.fonts].map((f)=>String(f.family).replace(/["']/g,
 const follow=()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;box();if(sel.length)send()})};
 // Where a piece starts a move or resize from, and how its position is written: left and top, absolute or as an offset.
 const start=(el)=>{const cs=getComputedStyle(el),f=free(el);return{el,pid:pidOf(el),rel:!f,l:px(cs.left,f?el.offsetLeft:0),t:px(cs.top,f?el.offsetTop:0),w:px(cs.width,el.offsetWidth),h:px(cs.height,el.offsetHeight),moved:false,wide:false,tall:false}};
-const starts=()=>sel.map(at).filter((el)=>el&&!fixed(el)).map(start);
+// A piece inside another selected piece moves with it, not on top of it.
+const starts=()=>{const els=sel.map(at).filter((el)=>el&&!fixed(el));return els.filter((el)=>!els.some((o)=>o!==el&&o.contains(el))).map(start)};
 const put=(s,l,t)=>{const st=s.el.style;if(s.rel&&getComputedStyle(s.el).position==="static")st.position="relative";st.left=Math.round(l)+"px";st.top=Math.round(t)+"px";if(!s.rel){st.right="auto";st.bottom="auto"}s.moved=true};
 const report=(list)=>{p({kind:"move",items:list.map((s)=>({pid:s.pid,rel:s.rel,x:s.moved?px(s.el.style.left,0):null,y:s.moved?px(s.el.style.top,0):null,w:s.wide?px(s.el.style.width,0):null,h:s.tall?px(s.el.style.height,0):null}))});send()};
 const finish=(keep)=>{const el=ed;if(!el)return;ed=null;el.removeEventListener("blur",blur);el.removeAttribute("contenteditable");el.style.outline=ring;
@@ -131,7 +132,9 @@ if(grip){press={...at0,mode:"size",dir:grip,list:starts()};e.preventDefault()}
 else if(!t||t.querySelector("[data-pid]"))press={...at0,mode:"marquee"};
 else if(!fixed(t))press={...at0,mode:"move",pid:pidOf(t),list:null}},true);
 addEventListener("pointermove",(e)=>{const d=press;if(!d)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;
-if(!d.on){if(Math.abs(dx)+Math.abs(dy)<4)return;if(d.mode==="move"){if(!sel.includes(d.pid))return;d.list=starts()}d.on=true;getSelection().removeAllRanges()}
+if(!d.on){if(Math.abs(dx)+Math.abs(dy)<4)return;if(d.mode==="move"){if(!sel.includes(d.pid))return;d.list=starts()}d.on=true;getSelection().removeAllRanges();
+// Captured, so a release outside the page still ends the gesture here.
+try{document.documentElement.setPointerCapture(e.pointerId);d.id=e.pointerId}catch(_){}}
 e.preventDefault();
 if(d.mode==="marquee"){if(!mq)mq=mk(TOP+"border:1px solid #2a74f5;background:rgba(42,116,245,.12)");
 Object.assign(mq.style,{display:"block",left:Math.min(d.x,e.clientX)+"px",top:Math.min(d.y,e.clientY)+"px",width:Math.abs(dx)+"px",height:Math.abs(dy)+"px"});return}
@@ -139,7 +142,8 @@ for(const s of d.list){if(d.mode==="move"){put(s,s.l+dx,s.t+dy);continue}
 const g=d.dir,st=s.el.style;if(/[ew]/.test(g)){st.width=Math.max(8,Math.round(s.w+(g.includes("w")?-dx:dx)))+"px";s.wide=true}
 if(/[ns]/.test(g)){st.height=Math.max(8,Math.round(s.h+(g.includes("n")?-dy:dy)))+"px";s.tall=true}
 if(/[nw]/.test(g))put(s,s.l+(g.includes("w")?dx:0),s.t+(g.includes("n")?dy:0))}box()},true);
-const drop=(e)=>{const d=press;press=null;if(!d||!d.on)return;if(d.mode!=="marquee"){report(d.list);return}
+const drop=(e)=>{const d=press;press=null;if(!d||!d.on)return;if(d.id!==undefined)try{document.documentElement.releasePointerCapture(d.id)}catch(_){}
+if(d.mode!=="marquee"){report(d.list);return}
 mq.style.display="none";const x0=Math.min(d.x,e.clientX),y0=Math.min(d.y,e.clientY),x1=Math.max(d.x,e.clientX),y1=Math.max(d.y,e.clientY);
 // Every piece wholly inside the marquee, without the pieces inside one already taken.
 const inside=[...document.querySelectorAll("[data-pid]")].filter((el)=>{const r=el.getBoundingClientRect();return r.width>0&&r.left>=x0&&r.right<=x1&&r.top>=y0&&r.bottom<=y1});
@@ -163,6 +167,8 @@ if(sy&&dy&&(dy>0?n.scrollTop+n.clientHeight<n.scrollHeight-1:n.scrollTop>0))retu
 addEventListener("wheel",(e)=>{if(e.ctrlKey||e.metaKey){e.preventDefault();p({kind:"zoom",x:e.clientX,y:e.clientY,dy:e.deltaY,pinch:e.ctrlKey&&!e.metaKey});return}
 const k=e.deltaMode===1?16:e.deltaMode===2?innerHeight:1,dx=e.deltaX*k,dy=e.deltaY*k;if(room(e.target,dx,dy))return;e.preventDefault();p({kind:"pan",dx,dy})},{passive:false,capture:true});
 addEventListener("keydown",(e)=>{if(ed){e.stopPropagation();if(e.key==="Escape"){e.preventDefault();finish(false)}else if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();finish(true)}return}
+// A form control or the page's own editable text keeps its keys: arrows move its caret and undo is its own.
+const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))){if(e.key==="Escape")p({kind:"escape"});return}
 // Arrow keys nudge the selection, ten pixels with Shift. A run of presses is reported once it pauses, as one move.
 const dir={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
 if(dir&&sel.length&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();e.stopPropagation();const k=e.shiftKey?10:1;
