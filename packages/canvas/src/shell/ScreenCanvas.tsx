@@ -11,7 +11,8 @@ import { CanvasRuntime, hitTargetOf, isControl, isEditable } from "./runtime.ts"
 import { Icon } from "./icons.tsx";
 import { dockAt, Grip, SPOTS, useDock, type DockSpot } from "./Dock.tsx";
 import { CommentLayer, CommentOverlay, CommentsPanel } from "./Comments.tsx";
-import { LayersPanel } from "./Layers.tsx";
+import { PieceEditor } from "./Layers.tsx";
+import { Filmstrip } from "./Filmstrip.tsx";
 import { PresenceLayer, PresenceOverlay, PresenceRoster } from "./Presence.tsx";
 
 /** onRuntime hands the runtime to the bench or the dev test hook. Nothing else reaches it. */
@@ -121,6 +122,9 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
     if (compactCanvas) { setCompactLayersOpen(!compactLayersOpen); return; }
     setWideLayersOpen(!wideLayersOpen); try { localStorage.setItem("screens.layersOpen", wideLayersOpen ? "0" : "1"); } catch { /* ignore */ }
   };
+  // The filmstrip accompanies a focused slide. Hiding it is the person's choice and holds across Screens.
+  const [filmOpen, setFilmOpen] = useState(() => { try { return localStorage.getItem("screens.filmstrip") !== "0"; } catch { return true; } });
+  const toggleFilm = () => { setFilmOpen(!filmOpen); try { localStorage.setItem("screens.filmstrip", filmOpen ? "0" : "1"); } catch { /* ignore */ } };
   const selectedItemId = v.selection.kind === "items" && v.selection.ids.length === 1 ? v.selection.ids[0] : null;
   const g = v.gesture;
   const paged = base.layout !== "canvas", pol = policyOf(base.layout, v.pages.view), presenting = paged && v.pages.view === "present";
@@ -138,6 +142,10 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
     // Fullscreen needs the button press itself; a host that refuses leaves Present filling the window.
     if (view === "present" && rt.view.pages.view === "present") void stageRef.current?.requestFullscreen?.().catch(() => {});
   };
+  // Pieces are edited on the focused object, and on a page as soon as it is the one selected: a slide needs no mode to edit.
+  const editing = focusId ?? (paged && v.pages.view === "scroll" ? selectedItemId : null) ?? null;
+  const editId = editing && st.committed?.items[editing]?.kind === "html-snapshot" ? editing : null;
+  const film = base.layout === "slides" && !presenting && focusId !== null && filmOpen;
   const doc = renderDocOf(base, g?.kind === "item-drag" || g?.kind === "item-resize" ? g.preview : null);
   const hasCanvasAnnotations = !paged && (
     base.strokes.some((stroke) => stroke.anchor.kind === "world" || doc.byId.has(stroke.anchor.itemId)) ||
@@ -158,7 +166,8 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
   const cursor = v.spacePanning || v.tool === "hand" ? (g?.kind === "pan" ? "grabbing" : "grab") : v.tool === "pencil" || v.tool === "comment" ? "crosshair" : "default";
 
   return (
-    <div ref={stageRef} className="stage screens-stage" tabIndex={-1} data-tool={v.tool} data-dragging={g ? "" : undefined} data-layout={base.layout} data-tools-dock={toolsAt}
+    <>
+    <div ref={stageRef} className="stage screens-stage" tabIndex={-1} data-filmstrip={film ? "" : undefined} data-tool={v.tool} data-dragging={g ? "" : undefined} data-layout={base.layout} data-tools-dock={toolsAt}
       data-pages={paged ? v.pages.view : undefined} style={{ cursor: presenting ? "default" : cursor }}>
       <div ref={worldRef} className="world" data-hit="bg">
         <div className="frame-layer">
@@ -273,11 +282,12 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
       <div className="chrome top-right screens-stack screens-right">
         <button className="button screens-comments-toggle" aria-label="Comments" aria-controls="screens-comments" aria-expanded={commentsOpen} onClick={() => rt.dispatch({ type: "command", command: { kind: "comments-panel", open: !commentsOpen } })}><Icon name="comment" />{base.threads.filter((t) => !t.resolved && (!presenting || (t.anchor.kind === "item" && v.focus.mode === "focused" && t.anchor.itemId === v.focus.itemId))).length || ""}</button>
         {!presenting && st.roster.length > 0 && <PresenceRoster rt={rt} roster={st.roster} skew={st.rosterSkew} items={doc.items} following={v.following} hidden={rt.hiddenParticipants} />}
-        {!presenting && v.focus.mode === "focused" && <div className="screens-row">
+        {!presenting && v.focus.mode === "focused" && <div className="shell screens-focus-actions">
+          {base.layout === "slides" && <button className="button" aria-expanded={filmOpen} onClick={toggleFilm}>Slides</button>}
           {!commentsOpen && st.committed?.items[v.focus.itemId]?.kind === "html-snapshot" && <button className="button" aria-expanded={layersOpen} onClick={toggleLayers}>Layers</button>}
           <button className="button" onClick={() => rt.dispatch({ type: "command", command: { kind: "exit-focus" } })}>Exit focus</button>
         </div>}
-        {!presenting && v.focus.mode === "focused" && layersOpen && !commentsOpen && st.committed?.items[v.focus.itemId]?.kind === "html-snapshot" && <LayersPanel key={v.focus.itemId} rt={rt} itemId={v.focus.itemId} />}
+        {!presenting && editId && <PieceEditor key={editId} rt={rt} itemId={editId} panel={focusId !== null && layersOpen && !commentsOpen} />}
         {commentsOpen && <CommentsPanel rt={rt} doc={base} view={v} />}
       </div>
 
@@ -295,6 +305,8 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
         ))}
       </div>
     </div>
+    {film && <Filmstrip rt={rt} items={base.items} current={focusId} />}
+    </>
   );
 }
 
@@ -372,24 +384,33 @@ const FrameView = memo(function FrameView({ rt, item, p, z, live, load, gen, fra
     void run().catch(() => { opening?.mark("bundle.failed", { itemId: item.id, gen }); if (active) setSrcdoc(null); });
     return () => { active = false; };
   }, [bridge, live, savedItem, item.contentVersion, rt]);
-  let surface: ReactNode = null;
+  const [kept, setKept] = useState<HostSource | null>(null);
+  let surface: ReactNode = null, current: HostSource | null = null;
   if (item.kind === "reference-image" && item.assetHash) surface = <img src={(item.sync !== "committed" && rt.localImage(item.assetHash)) || (bridge ? contentUrl ?? undefined : `/content/${item.assetHash}`)} alt="" draggable={false} />;
   else {
     // An object saved without a load check has no stored poster: the service renders one for its content on request.
     const saved = rt.client.get().committed?.items[item.id];
     const posterSrc = imageHash ? (bridge ? contentUrl : `/content/${imageHash}`) : !bridge && item.contentVersion && saved?.kind === "html-snapshot" && saved.contentVersion === item.contentVersion
       ? `/poster/${rt.client.screenId}/${item.id}/${item.contentVersion}?s=${saved.width}x${saved.height}` : null;
-    const poster = posterSrc ? <img key={posterSrc} src={posterSrc} alt="" draggable={false} style={{ opacity: load === "ready" ? 0 : 1 }} onLoad={() => { opening?.mark("poster.loaded", { itemId: item.id }); setShownPoster(posterSrc); }} onError={(e) => { opening?.mark("poster.failed", { itemId: item.id }); e.currentTarget.style.visibility = "hidden"; }}
+    const key = `${item.contentVersion}:${gen}`;
+    const source: HostSource | null = bridge ? (live && srcdoc?.version === item.contentVersion ? { key, srcDoc: srcdoc.html } : null)
+      : live && frameOrigin && frameCapability && item.contentVersion ? { key, src: `${frameOrigin}/host/${rt.client.screenId}/${item.id}/${item.contentVersion}?gen=${gen}&cap=${frameCapability}` } : null;
+    current = load === "ready" ? source : null;
+    // An edit loads the new version under the one on screen, and swaps when it is ready: the page never blinks to its poster.
+    // The two are keyed siblings, so React leaves the old page's node where it is. Moving an iframe reloads it.
+    const swapping = live && kept !== null && kept.key !== key;
+    const old = swapping && load === "loading" ? kept : null;
+    const frame = (h: HostSource, top: boolean) => <iframe key={h.key} title={item.title} ref={top ? (el) => rt.attachHost(item.id, gen, el) : undefined} aria-hidden={top ? undefined : true}
+      {...(h.srcDoc !== undefined ? { sandbox: "allow-scripts", srcDoc: h.srcDoc } : { src: h.src })}
+      style={{ opacity: !top || load === "ready" ? 1 : 0, pointerEvents: top && p.input === "page" ? "auto" : "none", transition: swapping ? "none" : undefined }} />;
+    const shown = load === "ready" || old !== null;
+    const poster = posterSrc ? <img key={posterSrc} src={posterSrc} alt="" draggable={false} style={{ opacity: shown ? 0 : 1 }} onLoad={() => { opening?.mark("poster.loaded", { itemId: item.id }); setShownPoster(posterSrc); }} onError={(e) => { opening?.mark("poster.failed", { itemId: item.id }); e.currentTarget.style.visibility = "hidden"; }}
       ref={(el) => { if (el && preload && !el.dataset.decoded) void el.decode().then(() => { el.dataset.decoded = ""; }, () => {}); }} /> : null;
-    const host = bridge && live && srcdoc?.version === item.contentVersion ? <iframe key={`${item.contentVersion}:${gen}`} title={item.title} ref={(el) => rt.attachHost(item.id, gen, el)} sandbox="allow-scripts" srcDoc={srcdoc.html} style={{ opacity: load === "ready" ? 1 : 0, pointerEvents: p.input === "page" ? "auto" : "none" }} /> : live && frameOrigin && frameCapability && item.contentVersion
-      ? <iframe key={`${item.contentVersion}:${gen}`} title={item.title} ref={(el) => rt.attachHost(item.id, gen, el)}
-          src={`${frameOrigin}/host/${rt.client.screenId}/${item.id}/${item.contentVersion}?gen=${gen}&cap=${frameCapability}`}
-          style={{ opacity: load === "ready" ? 1 : 0, pointerEvents: p.input === "page" ? "auto" : "none" }} />
-      : null;
     // Until a poster or the live page shows, a pulsing placeholder sits under it, so a frame never reads as a blank page.
-    const waiting = load !== "ready" && (!poster || shownPoster !== posterSrc);
-    surface = <>{waiting && <div className="screens-frame-placeholder" data-waiting={poster ? "poster" : undefined}>{!poster && live && load === "loading" ? <span className="spinner" /> : null}</div>}{poster}{host}</>;
+    const waiting = !shown && (!poster || shownPoster !== posterSrc);
+    surface = <>{waiting && <div className="screens-frame-placeholder" data-waiting={poster ? "poster" : undefined}>{!poster && live && load === "loading" ? <span className="spinner" /> : null}</div>}{poster}{[old && frame(old, false), source && frame(source, true)]}</>;
   }
+  useEffect(() => { if (!live) setKept(null); else if (current && current.key !== kept?.key) setKept(current); }, [live, current?.key]);
   return (
     <div className={classes} data-item={item.id} data-load={load ?? "poster"} data-input={p.input}
       style={{ left: item.x, top: item.y, width: item.width, height: item.height, zIndex: z, opacity: p.hiddenByFocus ? 0 : item.removing ? 0.4 : 1,
@@ -415,6 +436,9 @@ const FrameView = memo(function FrameView({ rt, item, p, z, live, load, gen, fra
   a.page === b.page && a.preload === b.preload &&
   a.frameOrigin === b.frameOrigin && a.frameCapability === b.frameCapability && a.rt === b.rt &&
   (Object.keys(a.p) as (keyof FramePresentation)[]).every((k) => a.p[k] === b.p[k]));
+
+/** One live page: the frame origin's host URL, or in the MCP App the inlined document. */
+interface HostSource { readonly key: string; readonly src?: string; readonly srcDoc?: string }
 
 const Handles = () => <>{HANDLES.map((h) => <span key={h} className={`resize-handle ${h}`} data-hit={`handle:${h}`} />)}</>;
 

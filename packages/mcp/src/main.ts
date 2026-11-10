@@ -122,6 +122,9 @@ const objectResult: Format = async (s, o, extra) => {
   const d = o.status === "committed" ? o.objects?.[0] : undefined;
   const body: Record<string, unknown> = { ...extra, ...o, ...(d ? { contentVersion: d.contentVersion, pieces: d.changed, ...(d.renumbered.length ? { renumbered: d.renumbered } : {}) } : {}),
     poster: check?.poster ?? null, warnings: check?.warnings ?? [] };
+  // A whole page with no text element of its own is a picture to the person: they can select nothing in it to edit.
+  if (d && !d.changed.split("\n").some((row) => / "/.test(row) && !/^\s*\S+ (img|svg|picture|canvas|video)\b/.test(row)))
+    body.hint = "This object has no text elements, so the person cannot edit its words on the page. Write headings, numbers and labels as HTML elements rather than inside an image, SVG or canvas.";
   delete body.checks; delete body.objects;
   if (o.status === "failed") body.error = { code: o.error.code, message: o.error.message };
   if (o.status !== "committed") return failure(body);

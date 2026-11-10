@@ -4,6 +4,7 @@ A Presentation (`layout: slides`, 1920x1080 pages) or a Document (`layout: a4`, 
 
 ## Sub-features
 
+- `pages-filmstrip`: a focused slide brings the filmstrip under the stage; clicking a thumbnail focuses that slide; the Slides button hides it and the choice holds.
 - `pages-agent`: `create_screen layout=slides` makes a Presentation; `add_object` appends pages at the page size and inserts at `index`; `reorder_items to={index}` moves a page; free placement and world comments are refused.
 - `pages-undo`: placement writes no revision, so undoing an add still works after another page moved, and `update_object` with a revision read before the move still commits.
 - `pages-scroll`: in the scroll view a drag on a page pans and never moves it; arrows step the selection between pages; pencil marks only land on a page.
@@ -43,6 +44,25 @@ list_screens query=Deck
 expect last.screens.0.layout=slides
 get_view
 expect last.view.pages.view=scroll
+```
+
+```screens id=pages-filmstrip
+create_screen title=Strip layout=slides as=@P
+add_object title=One files=fixture:slide as=@A
+add_object title=Two files=fixture:slide as=@B
+expect dom.filmstrip=null
+focus @A
+wait frames.@A.load=ready
+expect dom.filmstrip.pages=[@A,@B] dom.filmstrip.current=@A
+click ui:"Slide 2: Two"
+wait view.focus=focused:@B dom.filmstrip.current=@B
+click ui:Slides
+expect dom.filmstrip=null
+click ui:Slides
+wait dom.filmstrip.pages.size=2
+key Escape
+wait view.focus=none
+expect dom.filmstrip=null
 ```
 
 ```screens id=pages-undo

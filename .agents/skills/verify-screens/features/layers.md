@@ -11,12 +11,21 @@ An object's pieces are the elements of its HTML. An agent changes them with `edi
 - `layers-minimize`: the Layers button beside Exit focus hides and shows the panel, and a hidden panel stays hidden on the next focus.
 - `layers-click`: clicking a piece in the live object selects its row.
 - `layers-merge`: the person's hide and the agent's card edit both stay, and the person's undo takes back only the hide.
+- `layers-format`: on a slide, clicking a piece shows the format bar beside it with no focus mode; Italic, size and alignment save as inline styles.
+- `layers-type`: double-clicking text types on the page; Enter saves it through the service, Escape discards it and keeps the selection.
+- `layers-drag`: an absolutely positioned piece drags to a new left and top, and the person's undo puts it back.
+- `layers-multi`: a drag from the slide's background draws a marquee that selects the pieces inside it; arrow keys nudge them together (ten pixels with Shift) as one saved move, and go on working after the page reloads. A piece in the flow moves by a relative offset.
+- `layers-resize`: every piece carries eight handles; dragging the east handle of a heading saves its width.
+- `layers-insert`: the Layers panel adds a table that arrives selected; a cell takes typed text; Add row and Add column grow it; Delete removes the selected piece.
+- `layers-tree`: the panel lists content, not layout: an unnamed wrapper around one piece is skipped and a group is titled by what it is.
+- `layers-hint`: an object with no text elements comes back with a hint that the person cannot edit its words.
 - `layers-scripted`: a piece edit to an object with scripts is test-loaded before it commits, like an update.
 
 ## How to get to it (user POV)
 
 - An agent calls `read_object`, `edit_object` and `get_poster`.
 - A person selects an object, presses Focus, and uses the Layers panel on the right. The Layers button beside Exit focus hides or shows it.
+- On a Presentation or Document, a person clicks a page and then a piece on it: the format bar appears beside the piece. Double-clicking text types into it. Anywhere else the same works in focus mode.
 
 ## Driving it with screens-cli
 
@@ -119,9 +128,150 @@ edit_object itemId=@P edits='[{"at":{"tag":"h1"},"text":"Pay"}]'
 expect last.status=committed doc.rev=+1 doc.@P.poster!=null
 ```
 
+```screens id=layers-format
+create_screen title=Deck layout=slides as=@P
+add_object title=One files=fixture:slide as=@A
+click @A
+wait frames.@A.load=ready
+click @A+300,170
+wait dom.format.pid=ttl
+expect dom.format.size=96 dom.layers=null
+expect dom.format.pressed has Bold
+click ui:Italic
+wait dom.format.pressed has Italic
+click ui:"Larger text"
+wait dom.format.size=106
+click ui:"Align center"
+wait dom.format.pressed has "Align center"
+read_object itemId=@A piece=ttl format=source
+expect last.source~="font-style: italic" last.source~="font-size: 106px" last.source~="text-align: center"
+```
+
+```screens id=layers-type
+create_screen title=Deck layout=slides as=@P
+add_object title=One files=fixture:slide as=@A
+click @A
+wait frames.@A.load=ready
+click @A+300,170 --double
+key Mod+a
+type Revenue reached
+key Enter
+wait frames.@A.load=ready
+read_object itemId=@A piece=ttl format=source
+expect last.source~="Revenue reached" pending.size=0 storage.rev=doc.rev
+mark
+click @A+300,170 --double
+type Discarded
+key Escape
+click @A+300,290
+wait dom.format.pid=sub
+expect doc.rev=+0
+```
+
+```screens id=layers-drag
+create_screen title=Deck layout=slides as=@P
+add_object title=One files=fixture:slide as=@A
+click @A
+wait frames.@A.load=ready
+click @A+1600,130
+wait dom.format.pid=badge
+drag @A+1600,130 by -200,100
+wait frames.@A.load=ready
+read_object itemId=@A piece=badge format=source
+expect last.source~="left: 1147px" last.source~="top: 256px"
+undo
+read_object itemId=@A piece=badge format=source
+expect last.source~="left: 1500px; top: 80px"
+```
+
+```screens id=layers-multi
+create_screen title=Deck layout=slides as=@P
+add_object title=One files=fixture:slide as=@A
+click @A
+wait frames.@A.load=ready
+drag @A+60,60 by 1015,170
+mark
+key ArrowRight
+key ArrowRight
+key Shift+ArrowDown
+wait doc.rev=+1
+read_object itemId=@A piece=badge format=source
+expect last.source~="left: 1502px; top: 90px"
+read_object itemId=@A piece=copy format=source
+expect last.source~="left: 2px; top: 10px; position: relative"
+wait frames.@A.load=ready
+mark
+key ArrowLeft
+wait doc.rev=+1
+read_object itemId=@A piece=badge format=source
+expect last.source~="left: 1501px"
+```
+
+```screens id=layers-resize
+create_screen title=Deck layout=slides as=@P
+add_object title=One files=fixture:slide as=@A
+click @A
+wait frames.@A.load=ready
+click @A+300,170
+wait dom.format.pid=ttl
+mark
+drag @A+1777,202 by -300,0
+wait doc.rev=+1
+read_object itemId=@A piece=ttl format=source
+expect last.source~="width: 1103px"
+```
+
+```screens id=layers-insert
+create_screen title=Deck layout=slides as=@P
+add_object title=One files=fixture:slide as=@A
+focus @A
+wait frames.@A.load=ready dom.layers.rows.size=4
+click ui:"Add table"
+wait dom.format!=null frames.@A.load=ready
+expect dom.layers.labels has Table
+click @A+700,540 --double
+type Region
+key Enter
+wait frames.@A.load=ready
+read_object itemId=@A
+expect last.pieces~="td \"Region\""
+click @A+700,540
+wait dom.format!=null
+click ui:"Add row"
+wait frames.@A.load=ready
+click ui:"Add column"
+wait frames.@A.load=ready
+read_object itemId=@A
+expect last.pieces~="Region"
+click ui:"Add rectangle"
+wait dom.layers.labels has Rectangle
+wait dom.format!=null frames.@A.load=ready
+click ui:Delete
+wait dom.format=null
+read_object itemId=@A
+expect last.pieces~="Table"
+```
+
+```screens id=layers-tree
+create_screen title=Deck layout=slides as=@P
+add_object title=One files=fixture:slide as=@A
+focus @A
+wait frames.@A.load=ready dom.layers.rows.size=4
+expect dom.layers.rows.0=copy dom.layers.rows.1=ttl dom.layers.rows.3=badge dom.layers.labels.0=Section dom.layers.labels.3=Badge
+```
+
+```screens id=layers-hint
+add_object title=Photo files=fixture:big-image x=0 y=0 height=400 as=@I
+expect last.hint~="no text elements"
+add_object title=Water files=fixture:pieces x=500 y=0 height=500 as=@A
+expect last !has hint
+```
+
 ## Gotchas
 
 - Pieces are listed from the committed source. A row's eye shows the new state only after the service commits it; until then the row shows a spinner.
 - The details section remembers whether it was left open, in the browser. Run `layers-panel` in a fresh session (`run --fresh`), or a session that opened it earlier starts with it open.
 - An object with scripts (like `fixture:plain`, which has an `onclick`) can't skip the load check, so its piece edits take as long as an update.
 - Pieces only exist in the source HTML. Elements a page's own script creates are not pieces.
+- Typing on the page works on a piece that holds only text. A heading with a span or a `<br>` inside takes its text through the panel or `edit_object` instead.
+- A double-click that lands while the object's new source is still arriving starts typing once it has arrived.

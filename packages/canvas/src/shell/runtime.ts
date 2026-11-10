@@ -12,6 +12,29 @@ import { imageDataUrl } from "./content.tsx";
 import { opening } from "./opening.ts";
 
 export type LoadState = "loading" | "ready" | "failed";
+
+/** A highlighted piece as its page lays it out: its box in page pixels and the computed styles the format bar shows. */
+export interface PieceBox {
+  readonly pid: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number;
+  readonly size: number; readonly weight: number; readonly italic: boolean; readonly align: string; readonly color: string; readonly fill: string;
+  readonly font: string; readonly fit: string;
+  /** Absolutely positioned, so it can be dragged and resized in place. */
+  readonly free: boolean;
+  /** The font families the page bundles. */
+  readonly fonts: readonly string[];
+}
+/** Where a moved or resized piece ended up. rel: it sits in the page's flow, so left and top are an offset from there. */
+export interface PieceMove { readonly pid: string; readonly rel: boolean; readonly x: number | null; readonly y: number | null; readonly w: number | null; readonly h: number | null }
+export type PieceEvent = { readonly itemId: ItemId } & (
+  /** A press on a piece, or on no piece (null). */
+  | { readonly kind: "click"; readonly pid: string | null; readonly shift: boolean }
+  | { readonly kind: "dbl"; readonly pid: string }
+  /** The pieces a marquee enclosed. */
+  | { readonly kind: "select"; readonly pids: readonly string[] }
+  | { readonly kind: "rect"; readonly box: PieceBox | null }
+  /** The end of an on-page text edit: the new text, or null when nothing changed. */
+  | { readonly kind: "text"; readonly pid: string; readonly text: string | null }
+  | { readonly kind: "move"; readonly items: readonly PieceMove[] });
 export interface FrameRuntimeState { readonly live: ReadonlySet<ItemId>; readonly load: ReadonlyMap<ItemId, LoadState>; readonly gen: ReadonlyMap<ItemId, number> }
 
 export const safeStore = {
@@ -38,6 +61,8 @@ export class CanvasRuntime {
   private contextTimer: ReturnType<typeof setTimeout> | null = null;
   private hostWindows = new WeakMap<Window, { itemId: ItemId; gen: number }>();
   private hostElements = new Map<ItemId, HTMLIFrameElement>();
+  /** The object whose page held keyboard focus when an edit reloaded it: its new page takes focus back, so arrow keys go on working. */
+  private refocus: ItemId | null = null;
   private lastRevision = -1;
   private lastConnection: ScreenState["connection"] = "connecting";
   /** The gesture whose preview this canvas is broadcasting, if any. */
@@ -58,9 +83,9 @@ export class CanvasRuntime {
   readonly env: Env;
   /** Timestamps of input → next paint, collected only when the bench asks for them. */
   latencyProbe: ((ms: number) => void) | null = null;
-  /** Pieces the person clicked inside a live object, and sizes the object reported for a highlighted piece. View data
-   *  from the page: never authority to change the Screen. */
-  private pieceSubs = new Set<(e: { readonly itemId: ItemId; readonly kind: "click" | "rect"; readonly pid: string | null; readonly w?: number; readonly h?: number }) => void>();
+  /** What a live object reports about its pieces. The page is not trusted: a click, box or double-click is view data, and a
+   *  text or move is only a proposal the editor accepts for the one piece it is editing or has selected. */
+  private pieceSubs = new Set<(e: PieceEvent) => void>();
   /** Set by the dev test hook while a trace is recording. Sees every input with the clock and IDs step used. */
   tracer: ((input: CanvasInput, base: ScreenState, nows: readonly number[], ids: readonly string[]) => void) | null = null;
 
@@ -175,13 +200,17 @@ export class CanvasRuntime {
     this.dropped.clear(); this.unsubClient(); this.unsubView(); removeEventListener("message", this.onMessage);
   }
   subscribe(cb: () => void) { this.subs.add(cb); return () => this.subs.delete(cb); }
-  onPiece(cb: Parameters<typeof this.pieceSubs.add>[0]) { this.pieceSubs.add(cb); return () => { this.pieceSubs.delete(cb); }; }
+  onPiece(cb: (e: PieceEvent) => void) { this.pieceSubs.add(cb); return () => { this.pieceSubs.delete(cb); }; }
 
-  /** Outlines one piece inside a live object (null clears it). The page answers with the piece's size. */
-  highlight(itemId: ItemId, pid: string | null) {
+  /** Outlines the selected pieces inside a live object (none clears it). For one piece the page answers with its box. */
+  highlight(itemId: ItemId, pids: readonly string[]) { this.toPage(itemId, "highlight", null, pids); }
+  /** Starts an on-page text edit of a piece, or ends the one in progress and keeps its text. */
+  editText(itemId: ItemId, pid: string) { this.toPage(itemId, "edit", pid); }
+  commitText(itemId: ItemId) { this.toPage(itemId, "commit", null); }
+  private toPage(itemId: ItemId, kind: "highlight" | "edit" | "commit" | "focus", pid: string | null, pids: readonly string[] = []) {
     const el = this.hostElements.get(itemId), fa = this.client.get().frameAccess, gen = this.frames.gen.get(itemId);
     if (!el?.contentWindow || !fa || gen === undefined || this.frames.load.get(itemId) !== "ready") return;
-    el.contentWindow.postMessage({ kind: "highlight", gen: String(gen), pid }, this.client.transportKind === "app" ? "*" : fa.origin);
+    el.contentWindow.postMessage({ kind, gen: String(gen), pid, pids, zoom: this.view.camera.z }, this.client.transportKind === "app" ? "*" : fa.origin);
   }
   /** The arrangement the engine and the shell read: on a Presentation or Document, the grid when it is shown. */
   doc(): BaseDoc { return shownDocOf(baseDocOf(this.client.get()), this.view.pages.view, this.view.viewport.width); }
@@ -351,6 +380,7 @@ export class CanvasRuntime {
 
   /** Content changed under a live frame: remount with a new generation. */
   remount(itemId: ItemId) {
+    if (this.hostElements.get(itemId) === document.activeElement) this.refocus = itemId;
     const gen = new Map(this.frames.gen); gen.set(itemId, (gen.get(itemId) ?? 0) + 1);
     const load = new Map(this.frames.load); load.set(itemId, "loading");
     this.frames = { ...this.frames, gen, load }; this.uiVersion++; this.emit();
@@ -376,7 +406,7 @@ export class CanvasRuntime {
     const fa = this.client.get().frameAccess;
     if (!fa || e.origin !== (this.client.transportKind === "app" ? "null" : fa.origin) || !e.source) return;
     const host = this.hostWindows.get(e.source as Window);
-    const d = e.data as { itemId?: string; kind?: string; gen?: string; x?: number; y?: number; dx?: number; dy?: number; pinch?: boolean; pid?: string | null; w?: number; h?: number };
+    const d = e.data as { itemId?: string; kind?: string; gen?: string; x?: number; y?: number; dx?: number; dy?: number; pinch?: boolean; pid?: string | null; w?: number; h?: number } & Record<string, unknown>;
     if (!host || !d || typeof d !== "object" || Array.isArray(d) || !this.frames.live.has(host.itemId)
       || this.hostElements.get(host.itemId)?.contentWindow !== e.source || this.frames.gen.get(host.itemId) !== host.gen) return;
     // A direct srcdoc child cannot choose an item or generation. Browser host envelopes carry only their generation.
@@ -387,6 +417,7 @@ export class CanvasRuntime {
       opening?.mark(`frame.${d.kind}`, { itemId: host.itemId, gen: host.gen });
       const load = new Map(this.frames.load); load.set(host.itemId, d.kind === "ready" ? "ready" : "failed");
       this.frames = { ...this.frames, load }; this.uiVersion++; this.emit();
+      if (this.refocus === host.itemId) { this.refocus = null; if (d.kind === "ready") { this.hostElements.get(host.itemId)?.focus({ preventScroll: true }); this.toPage(host.itemId, "focus", null); } }
       // Advance only a pending admission retry. Camera settlement and view commands keep their own timers.
       // Waiting for the current batch avoids piling asset preparation onto frames that are still loading.
       if (becameReady && this.liveTimer && this.liveRetryAt !== null && this.liveRetryAt - performance.now() > READY_RETRY_MS
@@ -394,8 +425,30 @@ export class CanvasRuntime {
       return;
     }
     const pid = typeof d.pid === "string" && /^[a-z][a-z0-9-]{0,23}$/.test(d.pid) ? d.pid : null;
-    if (d.kind === "rect") { for (const s of this.pieceSubs) s({ itemId: host.itemId, kind: "rect", pid, w: Number(d.w) || 0, h: Number(d.h) || 0 }); return; }
-    if (d.kind === "pointer" && pid) for (const s of this.pieceSubs) s({ itemId: host.itemId, kind: "click", pid });
+    const emit = (ev: PieceEvent) => { for (const s of this.pieceSubs) s(ev); };
+    const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0), str = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : "");
+    const part = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    if (d.kind === "rect") {
+      emit({ itemId: host.itemId, kind: "rect", box: pid === null ? null : { pid, x: num(d.x), y: num(d.y), w: num(d.w), h: num(d.h), size: num(d.size), weight: num(d.weight), italic: d.italic === true,
+        align: str(d.align, 16), color: str(d.color, 64), fill: str(d.fill, 64), font: str(d.font, 200), fit: str(d.fit, 16), free: d.free === true,
+        fonts: Array.isArray(d.fonts) ? d.fonts.slice(0, 12).map((f) => str(f, 64)).filter(Boolean) : [] } });
+      return;
+    }
+    // Undo and redo pressed inside a page the person is editing. The page can ask for nothing else from history.
+    if (d.kind === "history") { if (this.view.interacting === host.itemId || (this.view.focus.mode === "focused" && this.view.focus.itemId === host.itemId)) this.dispatch({ type: "command", command: { kind: d.redo === true ? "redo" : "undo" } }); return; }
+    if (d.kind === "dbl") { if (pid) emit({ itemId: host.itemId, kind: "dbl", pid }); return; }
+    if (d.kind === "text") { if (pid) emit({ itemId: host.itemId, kind: "text", pid, text: typeof d.text === "string" ? d.text.slice(0, 20000) : null }); return; }
+    const pids = (v: unknown) => (Array.isArray(v) ? v.slice(0, 50).filter((x): x is string => typeof x === "string" && /^[a-z][a-z0-9-]{0,23}$/.test(x)) : []);
+    if (d.kind === "select") { emit({ itemId: host.itemId, kind: "select", pids: pids(d.pids) }); return; }
+    if (d.kind === "move") {
+      const items = (Array.isArray(d.items) ? d.items.slice(0, 50) : []).flatMap((m: Record<string, unknown> | null): PieceMove[] => {
+        const id = m && pids([m.pid])[0];
+        return id ? [{ pid: id, rel: m.rel === true, x: part(m.x), y: part(m.y), w: part(m.w), h: part(m.h) }] : [];
+      });
+      if (items.length) emit({ itemId: host.itemId, kind: "move", items });
+      return;
+    }
+    if (d.kind === "pointer") emit({ itemId: host.itemId, kind: "click", pid, shift: d.shift === true });
     if (d.kind === "pointer") this.dispatch({ type: "bridge", itemId: host.itemId, msg: { kind: "pointer", x: Number(d.x), y: Number(d.y) } });
     else if (d.kind === "zoom") this.dispatch({ type: "bridge", itemId: host.itemId, msg: { kind: "zoom", x: Number(d.x), y: Number(d.y), dy: Number(d.dy), pinch: d.pinch === true } });
     else if (d.kind === "pan") this.dispatch({ type: "bridge", itemId: host.itemId, msg: { kind: "pan", dx: Number(d.dx) || 0, dy: Number(d.dy) || 0 } });

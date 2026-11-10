@@ -28,6 +28,7 @@ For how to make a design look excellent, use the Screens design skills when you 
 - When the person is watching, build in 2 to 4 calls: add_object with the head, styles and first section, then edit_object writes the rest into body (pos: "end"), so each part appears as it saves. When nobody is watching, one add_object is cheaper.
 - To show a large new object or rewrite before any of it is saved, send it in parts of about 4 KB with more: true. The person watches the draft; nothing is saved until the call without more.
 - Put data-pid="short-name" on elements you will change later. Screens stamps the rest.
+- Build every object so the person can edit it. Each heading, paragraph, number, label, image, shape and table cell is its own element, and text is HTML text: never bake a page, or the words on it, into an image, an SVG or a canvas. The person clicks an element on the page to restyle it and double-clicks its text to retype it. Retyping needs an element that holds only text, so keep spans and <br> out of headings and labels (split them into separate elements, or give a span its own data-pid). Name the elements that matter with data-name ("Title", "Key number"); unnamed wrappers stay out of the person's layer list. An element placed with position: absolute and left/top in px can be dragged and resized on the page.
 - On a canvas, objects go to the right of existing items unless you pass x and y. On a Presentation or Document every item is a page: add_object appends one, or inserts it at index.
 
 ## Change an object
@@ -85,7 +86,8 @@ const topics: Record<string, string> = {
 - Every item is a page, kept in order at the page size. add_object and add_image append a page, or insert it at index (0 is first).
 - reorder_items with { index } moves pages; forward and backward move one page. arrange_items is refused.
 - Comments and strokes go on a page.
-- Build each page as its own object at the page size. Keep type, color and spacing consistent across pages.`,
+- Build each page as its own object at the page size. Keep type, color and spacing consistent across pages.
+- The person edits a slide in place: text, type size, weight, alignment and color, and they can add text, shapes and tables. Draw a chart from elements (one per bar and label), not as a picture, so its parts stay editable.`,
   recovery: `# Recovery
 
 - opId: pass one on any mutation you might retry. Same opId and payload: the original result. Same opId, different payload: refused.

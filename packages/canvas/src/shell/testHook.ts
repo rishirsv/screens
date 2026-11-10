@@ -91,10 +91,11 @@ export function installTestHook(rt: CanvasRuntime): void {
   const describe = (el: Element | null) => !el ? "nothing" : `${el.tagName.toLowerCase()}${el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : ""}${el.getAttribute("aria-label") ? `[${el.getAttribute("aria-label")}]` : ""}`;
 
   /** The canvas stage while a Screen is open; the whole window on a library page. */
-  const bounds = () => (rt.stage?.isConnected ? rt.stage.getBoundingClientRect() : new DOMRect(0, 0, innerWidth, innerHeight));
+  /** The stage, or the window for controls outside it (the library, the slide filmstrip below the stage). */
+  const bounds = (el?: Element) => (rt.stage?.isConnected && (!el || rt.stage.contains(el)) ? rt.stage.getBoundingClientRect() : new DOMRect(0, 0, innerWidth, innerHeight));
   /** A visible point of el that is actually on top, preferring its centre. */
   const pointIn = (el: Element, accept: (hit: Element | null) => boolean): Located => {
-    const stage = bounds();
+    const stage = bounds(el);
     const r = el.getBoundingClientRect();
     const x0 = Math.max(r.left, stage.left), x1 = Math.min(r.right, stage.right), y0 = Math.max(r.top, stage.top), y1 = Math.min(r.bottom, stage.bottom);
     if (x1 <= x0 || y1 <= y0) return { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2, ok: false, coveredBy: null, onScreen: false, found: true };
@@ -214,6 +215,12 @@ export function installTestHook(rt: CanvasRuntime): void {
               text: details.querySelector<HTMLInputElement>("#piece-text")?.value ?? null, fill: details.querySelector<HTMLInputElement>("#piece-fill")?.value ?? null,
               size: details.querySelector("[data-size]")?.textContent ?? null } : null,
           } : null;
+          // The format bar beside the selected piece, and the slide filmstrip under a focused slide.
+          const bar = document.querySelector<HTMLElement>(".screens-format");
+          d.format = bar ? { pid: bar.dataset.format, size: bar.querySelector<HTMLInputElement>(".screens-format-size")?.value ?? null,
+            pressed: [...bar.querySelectorAll('[aria-pressed="true"]')].map((b) => b.getAttribute("aria-label")) } : null;
+          const film = [...document.querySelectorAll<HTMLElement>(".screens-slide-thumb")];
+          d.filmstrip = film.length ? { pages: film.map((f) => f.dataset.film), current: film.find((f) => f.getAttribute("aria-current") === "true")?.dataset.film ?? null } : null;
           d.panel = document.querySelector(".screens-comments-panel") ? [...document.querySelectorAll<HTMLElement>("[data-thread-row]")].map((r) => r.dataset.threadRow) : null;
           out.dom = d;
         }

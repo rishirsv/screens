@@ -42,7 +42,7 @@ function fixture(content: string, i: number) {
   }
   return `<!doctype html><html><head><style>body{margin:0;font:16px system-ui;padding:12px}li{padding:8px 0;border-bottom:1px solid #ddd}button{position:relative;z-index:1}${style}</style></head><body><h1>Item ${i}</h1><button id="exercise">Interact</button><output id="clicks">0</output>${body}<script>
 let clicks=0;document.querySelector("#exercise").onclick=()=>{document.querySelector("#clicks").textContent=String(++clicks)};
-addEventListener("message",e=>{if(e.source!==parent||e.data?.kind!=="highlight"||e.data.pid!=="bench-exercise")return;
+addEventListener("message",e=>{if(e.source!==parent||e.data?.kind!=="highlight"||e.data.pids?.[0]!=="bench-exercise")return;
 document.querySelector("#exercise").dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,clientX:20,clientY:70}));document.querySelector("#exercise").click();const s=document.querySelector("#scroll");if(s)s.scrollTop=100;
 const broken=document.querySelector("#broken");const media=document.querySelector("img:not(#broken)");const animated=document.querySelector(".animated");const ok=(!s||Math.abs(s.scrollTop-100)<1)&&(!broken||(broken.complete&&broken.naturalWidth===0))&&(!media||(media.complete&&media.naturalWidth>0))&&(!animated||document.getAnimations().some(a=>a.playState==="running"));
 parent.postMessage({kind:"rect",pid:"bench-ack",w:Number(document.querySelector("#clicks").textContent),h:ok?1:0},"*");});
@@ -174,8 +174,8 @@ async function runOne(svc: Service, root: Root, n: number, content: string, reps
         await wait(400); const focusReady = await settle(); focused = rt.view.focus.mode === "focused" && rt.frames.load.get(item.id) === "ready";
         if (!focused || !focusReady.settled) throw new Error("focus never reached ready");
         let ack: { w?: number; h?: number } | null = null;
-        const off = rt.onPiece((e) => { if (e.itemId === item.id && e.kind === "rect" && e.pid === "bench-ack") ack = e; });
-        rt.highlight(item.id, "bench-exercise");
+        const off = rt.onPiece((e) => { if (e.itemId === item.id && e.kind === "rect" && e.box?.pid === "bench-ack") ack = e.box; });
+        rt.highlight(item.id, ["bench-exercise"]);
         const t = performance.now(); while (!ack && performance.now() - t < 3000) await wait(10); off();
         const got = ack as { w?: number; h?: number } | null;
         interaction = !!got && (got.w ?? 0) > 0 && got.h === 1 && rt.view.interacting === item.id;
