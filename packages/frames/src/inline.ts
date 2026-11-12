@@ -128,11 +128,14 @@ addEventListener("pointerdown",(e)=>{const t=piece(e.target),grip=e.target&&e.ta
 if(!grip)p({kind:"pointer",x:e.clientX,y:e.clientY,pid:t?pidOf(t):null,shift:e.shiftKey});
 if(ed||e.button!==0)return;const at0={x:e.clientX,y:e.clientY,on:false};
 if(grip){press={...at0,mode:"size",dir:grip,list:starts()};e.preventDefault()}
-// A press on a group or on the background draws a marquee; on anything else it moves the selection once the press has selected it.
+// Groups and the background draw a marquee. Text selects words; other pieces move once selected.
 else if(!t||t.querySelector("[data-pid]"))press={...at0,mode:"marquee"};
+else if(!t.children.length&&t.textContent.trim()&&!/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)&&!e.shiftKey&&!(sel.length>1&&sel.includes(pidOf(t))))press={...at0,mode:"text",pid:pidOf(t)};
 else if(!fixed(t))press={...at0,mode:"move",pid:pidOf(t),list:null}},true);
 addEventListener("pointermove",(e)=>{const d=press;if(!d)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;
-if(!d.on){if(Math.abs(dx)+Math.abs(dy)<4)return;if(d.mode==="move"){if(!sel.includes(d.pid))return;d.list=starts()}d.on=true;getSelection().removeAllRanges();
+if(!d.on){if(Math.abs(dx)+Math.abs(dy)<4)return;
+// Keep the browser's selection gesture intact while the canvas starts editing this text.
+if(d.mode==="text"){press=null;p({kind:"dbl",pid:d.pid});return}if(d.mode==="move"){if(!sel.includes(d.pid))return;d.list=starts()}d.on=true;getSelection().removeAllRanges();
 // Captured, so a release outside the page still ends the gesture here.
 try{document.documentElement.setPointerCapture(e.pointerId);d.id=e.pointerId}catch(_){}}
 e.preventDefault();

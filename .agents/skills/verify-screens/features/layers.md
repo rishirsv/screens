@@ -13,6 +13,7 @@ An object's pieces are the elements of its HTML. An agent changes them with `edi
 - `layers-merge`: the person's hide and the agent's card edit both stay, and the person's undo takes back only the hide.
 - `layers-format`: on a slide, clicking a piece shows the format bar beside it with no focus mode; Italic, size and alignment save as inline styles.
 - `layers-type`: double-clicking text types on the page; Enter saves it through the service, Escape discards it and keeps the selection.
+- `layers-text-selection`: dragging across words starts text editing, replaces only those words and saves no position change; a reverse drag selects multiple words.
 - `layers-drag`: an absolutely positioned piece drags to a new left and top, and the person's undo puts it back.
 - `layers-multi`: a drag from the slide's background draws a marquee that selects the pieces inside it; arrow keys nudge them together (ten pixels with Shift) as one saved move, and go on working after the page reloads. A piece in the flow moves by a relative offset.
 - `layers-resize`: every piece carries eight handles; dragging the east handle of a heading saves its width.
@@ -25,7 +26,7 @@ An object's pieces are the elements of its HTML. An agent changes them with `edi
 
 - An agent calls `read_object`, `edit_object` and `get_poster`.
 - A person selects an object, presses Focus, and uses the Layers panel on the right. The Layers button beside Exit focus hides or shows it.
-- On a Presentation or Document, a person clicks a page and then a piece on it: the format bar appears beside the piece. Double-clicking text types into it. Anywhere else the same works in focus mode.
+- On a Presentation or Document, a person clicks a page and then a piece on it: the format bar appears beside the piece. Dragging across text selects words for editing. Double-clicking text also types into it. Anywhere else the same works in focus mode.
 
 ## Driving it with screens-cli
 
@@ -166,6 +167,31 @@ key Escape
 click @A+300,290
 wait dom.format.pid=sub
 expect doc.rev=+0
+```
+
+```screens id=layers-text-selection
+create_screen title=Selection layout=slides as=@P
+add_object title=One files=fixture:slide as=@A
+click @A
+wait frames.@A.load=ready
+mark
+drag @A+145,170 to @A+540,170
+expect doc.rev=+0
+type "Strong "
+key Enter
+wait doc.rev=+1 frames.@A.load=ready
+read_object itemId=@A piece=ttl format=source
+expect last.source='<h1 data-pid="ttl" style="font-size: 96px; margin: 0">Strong grew</h1>' pending.size=0 storage.rev=doc.rev
+undo
+wait frames.@A.load=ready
+mark
+drag @A+800,170 to @A+145,170
+expect doc.rev=+0
+type Annual growth
+key Enter
+wait doc.rev=+1 frames.@A.load=ready
+read_object itemId=@A piece=ttl format=source
+expect last.source='<h1 data-pid="ttl" style="font-size: 96px; margin: 0">Annual growth</h1>' pending.size=0 storage.rev=doc.rev
 ```
 
 ```screens id=layers-drag
