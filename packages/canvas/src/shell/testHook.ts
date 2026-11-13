@@ -25,7 +25,7 @@ export interface Located { readonly x: number; readonly y: number; readonly ok: 
 /** Exhaustive over ViewState: a new view field fails typecheck until the probe includes it or says why not. */
 export const VIEW_PROBE = {
   viewport: "include", pointer: "include", dpr: "include", theme: "include", camera: "include", autoFit: "include", moving: "include",
-  animation: "summary", focus: "summary", tool: "include", spacePanning: "include", pencil: "include", selection: "summary", interacting: "include",
+  animation: "summary", focus: "summary", tool: "include", shiftPanning: "include", pencil: "include", selection: "summary", interacting: "include",
   gesture: "summary", wheel: "omit:transient wheel accumulator", editing: "summary", comment: "include", deferredCommand: "summary", following: "include",
   invertScroll: "include", capabilities: "include", pages: "include",
 } as const satisfies Record<keyof ViewState, "include" | "summary" | `omit:${string}`>;

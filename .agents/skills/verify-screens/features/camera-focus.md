@@ -1,10 +1,10 @@
 # Camera and focus
 
-A person pans with Hand, Space-drag, the middle button or the wheel. They zoom with Cmd plus the wheel, the zoom buttons or the keyboard, and fit everything into view. Focus hides the other frames and returns to the previous view. Tall canvas objects start at the top, fitted to width up to 100%, so a large board stays readable and scrolls within its bounds. An agent can ask an open canvas to show or focus items. The canvas defers that while the person is busy. Camera moves never create a revision.
+A person pans with Hand, Shift-drag, the middle button or the wheel. They zoom with Cmd plus the wheel, the zoom buttons or the keyboard, and fit everything into view. Focus hides the other frames and returns to the previous view. Tall canvas objects start at the top, fitted to width up to 100%, so a large board stays readable and scrolls within its bounds. An agent can ask an open canvas to show or focus items. The canvas defers that while the person is busy. Camera moves never create a revision.
 
 ## Sub-features
 
-- `cam-pan`: Hand, Space-drag and the wheel pan by the screen delta, with no revision.
+- `cam-pan`: Hand, Shift-drag and the wheel pan by the screen delta, with no revision.
 - `cam-zoom`: zoom out and in around the centre; Cmd+0 goes to 100%; Fit all frames everything and turns auto-fit back on.
 - `focus`: the Focus action, or the agent's `focus_item`, fits one frame and hides the others. Exit focus or Escape returns.
 - `focus-wheel`: in focus with Move, the wheel over the live page pans the camera, as Hand does. A scroll area inside the page keeps the wheel while it can still scroll.
@@ -21,7 +21,7 @@ A person pans with Hand, Space-drag, the middle button or the wheel. They zoom w
 
 ## How to get to it (user POV)
 
-- Press H or hold Space and drag. Use the zoom buttons, Cmd+wheel, the Focus action on a selected frame, and Escape.
+- Press H or hold Shift and drag. Use the zoom buttons, Cmd+wheel, the Focus action on a selected frame, and Escape.
 - An agent calls `show_items`, `focus_item`, `get_view` and `open_screen`.
 
 ## Driving it with screens-cli
@@ -33,10 +33,16 @@ tool hand
 drag bg by -100,-50
 expect view.camera.x=+-100 view.camera.y=+-50 view.autoFit=false doc.rev=+0
 tool move
-drag bg by 40,0 --space
+drag bg by 40,0 --shift
 expect view.camera.x=+-60
 wheel 0,100
-expect view.camera.y=+-150
+expect view.camera.y=+-150 view.tool=move view.shiftPanning=false doc.rev=+0
+drag bg by 40,0 --space
+expect view.camera.x=+-60 view.camera.y=+-150 view.shiftPanning=false doc.rev=+0
+drag @A.title by 40,0 --shift
+expect view.camera.x=+-20 doc.@A.x=0 view.tool=move view.shiftPanning=false doc.rev=+0
+drag @A.title by 40,0
+expect doc.@A.x=40 doc.rev=+1 storage.rev=doc.rev
 ```
 
 ```screens id=cam-zoom

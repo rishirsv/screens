@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "screens",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "A local canvas where you and your agent create, arrange and comment on HTML designs.",
   "author": {
     "name": "Rishi Sharma"

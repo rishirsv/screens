@@ -6,7 +6,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@rishirsv/screens@0.1.19",
+        "@rishirsv/screens@0.1.20",
         "mcp"
       ]
     }

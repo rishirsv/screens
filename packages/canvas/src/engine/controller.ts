@@ -83,7 +83,7 @@ export interface ViewState {
   readonly animation: CameraAnimation | null;
   readonly focus: FocusState;
   readonly tool: ToolId;
-  readonly spacePanning: boolean;
+  readonly shiftPanning: boolean;
   readonly pencil: { readonly color: string; readonly size: PencilSize };
   readonly selection: Selection;
   readonly interacting: ItemId | null;
@@ -209,7 +209,7 @@ export const ESCAPE_CHAIN = ["cancel-gesture", "clear-stroke-selection", "clear-
 export function initialViewState(o: { viewport: Size; pointer: "fine" | "coarse"; dpr: number; theme: "light" | "dark"; invertScroll?: boolean }): ViewState {
   return {
     viewport: o.viewport, pointer: o.pointer, dpr: o.dpr, theme: o.theme, camera: { x: 0, y: 0, z: 1 }, autoFit: true, moving: false, animation: null,
-    focus: { mode: "none" }, tool: "move", spacePanning: false, pencil: { color: defaultInk(o.theme), size: 6 },
+    focus: { mode: "none" }, tool: "move", shiftPanning: false, pencil: { color: defaultInk(o.theme), size: 6 },
     selection: { kind: "items", ids: [] }, interacting: null, gesture: null, wheel: { dx: 0, dy: 0, zoom: 0, anchor: { x: 0, y: 0 }, scheduled: false },
     editing: null, comment: { draft: null, activeThreadId: null, parkedDraft: null, showResolved: false, expanded: false, panelOpen: false, editingCommentId: null, composing: false, restore: null }, deferredCommand: null, invertScroll: o.invertScroll ?? false, capabilities: { comments: true }, following: null,
     pages: SCROLL,
@@ -287,9 +287,9 @@ function stepInner(s: ViewState, input: CanvasInput, doc: BaseDoc, env: Env, fx:
     case "resize": return reconcile({ ...s, viewport: input.viewport }, shownDocOf(doc, s.pages.view, input.viewport.width));
     case "document-changed": return reconcile(s, doc, fx);
     case "key-down": return keyDown(s, input, doc, env, fx);
-    case "key-up": return input.code === "Space" ? { ...s, spacePanning: false } : s;
+    case "key-up": return (input.code === "ShiftLeft" || input.code === "ShiftRight") ? { ...s, shiftPanning: false } : s;
     case "window-blur": {
-      let n: ViewState = { ...s, spacePanning: false };
+      let n: ViewState = { ...s, shiftPanning: false };
       // Focus moving into a live page means the person is using it, but only under Move (POINTER_HAND_PEN_SPEC §3).
       if (input.activeFrameItem && doc.byId.has(input.activeFrameItem) && s.tool === "move" && !s.gesture) n = { ...n, interacting: input.activeFrameItem };
       return n;
@@ -368,11 +368,11 @@ function pointerDown(s0: ViewState, i: Extract<CanvasInput, { type: "pointer-dow
   }
   const unselectedSurface = t.kind === "item" && t.part === "surface" && !selectedIds(s).includes(t.itemId);
   // Pins sit above frames and strokes, so in every tool, Hand included, a primary press on a pin is a pin press: a click
-  // opens it, a drag moves it. Only Space and the middle button still pan.
-  if (t.kind === "thread" && i.button === 0 && !s.spacePanning) return startPinDrag(s, i.p, t.threadId, doc, fx);
+  // opens it, a drag moves it. Only Shift and the middle button still pan.
+  if (t.kind === "thread" && i.button === 0 && !s.shiftPanning) return startPinDrag(s, i.p, t.threadId, doc, fx);
   // On a page in the scroll view, Move selects and a drag pans: pages are placed by order, never dragged.
   const pagePan = s.tool === "move" && t.kind === "item" && pol.drag === "pan" && s.focus.mode === "none";
-  if (i.button === 1 || s.spacePanning || pagePan || (i.button === 0 && (s.tool === "hand" || (s.tool === "move" && touch && (t.kind === "background" || unselectedSurface))))) {
+  if (i.button === 1 || s.shiftPanning || pagePan || (i.button === 0 && (s.tool === "hand" || (s.tool === "move" && touch && (t.kind === "background" || unselectedSurface))))) {
     fx.push({ type: "capture", pointerId: i.p.pointerId });
     return { ...s, gesture: { kind: "pan", pointerId: i.p.pointerId, origin: i.p.client, last: i.p.client, moved: false,
       onClick: t.kind === "item" && (touch || pagePan) ? { kind: "select", itemId: t.itemId } : { kind: "clear" } } };
@@ -849,7 +849,7 @@ function keyDown(s: ViewState, k: Extract<CanvasInput, { type: "key-down" }>, do
     const to = !k.mod ? PRESENT_KEYS[k.key] : undefined;
     return to ? presentStep(s, doc, to) : s;
   }
-  if (k.code === "Space") return s.spacePanning ? s : { ...s, spacePanning: true };
+  if (k.code === "ShiftLeft" || k.code === "ShiftRight") return s.shiftPanning ? s : { ...s, shiftPanning: true };
   if (k.key === "Escape") return escape(s, doc, env, fx);
   const arrow = ARROWS[k.key];
   if (arrow) {
@@ -1051,7 +1051,7 @@ function pagesView(s: ViewState, view: PagesView, doc: BaseDoc, env: Env, fx: Ef
   const r = pageRect("slides", doc.items.findIndex((x) => x.id === start));
   const rect = { x: r.x, y: r.y, w: r.width, h: r.height };
   n = { ...selectTool(n, "move"), pages: { view: "present", restore }, focus: { mode: "focused", itemId: start, restore }, autoFit: true,
-    selection: items([start]), interacting: null, animation: null, spacePanning: false, comment: { ...closedComment(n), draft: null, parkedDraft: null, panelOpen: false, restore: s.comment } };
+    selection: items([start]), interacting: null, animation: null, shiftPanning: false, comment: { ...closedComment(n), draft: null, parkedDraft: null, panelOpen: false, restore: s.comment } };
   return { ...n, camera: fitExact(rect, n.viewport) };
 }
 
@@ -1120,7 +1120,7 @@ export interface FramePresentation {
 }
 /**
  * The page takes pointer input only when it is a ready live snapshot and it is interacting, or the Move tool is
- * active without Space and it is the sole selection or the focused item. Everything else gets the shield.
+ * active without Shift and it is the sole selection or the focused item. Everything else gets the shield.
  */
 export function presentFrame(item: { readonly id: ItemId; readonly kind: string; readonly width: number; readonly removing: boolean }, s: ViewState, ready: boolean): FramePresentation {
   const ids = selectedIds(s);
@@ -1129,7 +1129,7 @@ export function presentFrame(item: { readonly id: ItemId; readonly kind: string;
   const focused = focusedId === item.id;
   // Only the scroll view (every canvas is in it) lets a page take input: in the grid a press reorders or opens, and Present steps.
   const page = item.kind === "html-snapshot" && ready && !item.removing && s.gesture === null && s.pages.view === "scroll" &&
-    (s.interacting === item.id || (s.tool === "move" && !s.spacePanning && ((selected && ids.length === 1) || focused)));
+    (s.interacting === item.id || (s.tool === "move" && !s.shiftPanning && ((selected && ids.length === 1) || focused)));
   return {
     selected: selected && ids.length === 1, multiSelected: selected && ids.length > 1, interacting: s.interacting === item.id, focused,
     hiddenByFocus: focusedId !== null && !focused, input: page ? "page" : "shield",

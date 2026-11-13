@@ -62,11 +62,11 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
       // Tab walks the items, then lets the browser move focus on to the toolbar, so focus is never trapped.
       const tab = e.key === "Tab" && !mod && !control && nextItem(rt.view, rt.doc(), e.shiftKey) !== null;
       const presentKey = !control && rt.view.pages.view === "present" && rt.doc().layout !== "canvas" && e.key in PRESENT_KEYS;
-      if (!editable && (presentKey || (e.code === "Space" && !control) || tab || (arrow && !control) || (mod && (["=", "+", "-", "0", "1", "z", "Z", "a"].includes(e.key) || (e.shiftKey && e.code === "KeyC") || e.code === "BracketLeft" || e.code === "BracketRight")) || ((e.key === "Backspace" || e.key === "Delete") && !mod))) e.preventDefault();
-      if (e.repeat && e.code === "Space") return;
+      if (!editable && (presentKey || ((e.code === "ShiftLeft" || e.code === "ShiftRight") && !control) || tab || (arrow && !control) || (mod && (["=", "+", "-", "0", "1", "z", "Z", "a"].includes(e.key) || (e.shiftKey && e.code === "KeyC") || e.code === "BracketLeft" || e.code === "BracketRight")) || ((e.key === "Backspace" || e.key === "Delete") && !mod))) e.preventDefault();
+      if (e.repeat && (e.code === "ShiftLeft" || e.code === "ShiftRight")) return;
       rt.dispatch({ type: "key-down", key: e.key, code: e.code, mod, shift: e.shiftKey, editable, control });
     };
-    // A mouse click on a toolbar button leaves keyboard focus on the canvas, so Space and the arrows keep working.
+    // A mouse click on a toolbar button leaves keyboard focus on the canvas, so Shift and the arrows keep working.
     const keepFocus = (e: MouseEvent) => { if ((e.target as Element).closest?.(".chrome button:not([data-allow-focus])")) e.preventDefault(); };
     const keyUp = (e: KeyboardEvent) => rt.dispatch({ type: "key-up", code: e.code });
     const blur = () => setTimeout(() => rt.dispatch({ type: "window-blur", activeFrameItem: rt.itemForActiveFrame() }), 0);
@@ -163,7 +163,7 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
   const sel = v.selection.kind === "items" ? v.selection.ids.map((id) => doc.items.find((it) => it.id === id)).filter((it) => !!it) : [];
   const box = pol.handles && sel.length > 1 && v.tool === "move" && v.focus.mode === "none" && !sel.some((it) => it!.removing)
     ? boundsOf(sel.map((it) => it!.rect)) : null;
-  const cursor = v.spacePanning || v.tool === "hand" ? (g?.kind === "pan" ? "grabbing" : "grab") : v.tool === "pencil" || v.tool === "comment" ? "crosshair" : "default";
+  const cursor = v.shiftPanning || v.tool === "hand" ? (g?.kind === "pan" ? "grabbing" : "grab") : v.tool === "pencil" || v.tool === "comment" ? "crosshair" : "default";
 
   return (
     <>
@@ -230,7 +230,7 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
           <Grip label="Move toolbar" spot={toolsAt} open={SPOTS.filter((s) => s !== zoomAt && !pagesHold.includes(s))} onDock={setToolsSpot} />
           {TOOLS.filter((t) => t.available(v.capabilities) && (pol.marks || t.id === "move" || t.id === "hand")).map((t) => (
             <button key={t.id} className="tool" aria-label={`${t.label} (${t.key.toUpperCase()})`} title={`${t.label} (${t.key.toUpperCase()})`}
-              aria-pressed={t.id === "hand" ? v.tool === "hand" || v.spacePanning : v.tool === t.id && !v.spacePanning}
+              aria-pressed={t.id === "hand" ? v.tool === "hand" || v.shiftPanning : v.tool === t.id && !v.shiftPanning}
               onClick={() => rt.dispatch({ type: "command", command: { kind: "select-tool", tool: t.id } })}>
               <Icon name={t.id} />
             </button>
