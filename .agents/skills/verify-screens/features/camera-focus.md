@@ -7,7 +7,7 @@ A person pans with Hand, Shift-drag, the middle button or the wheel. They zoom w
 - `cam-pan`: Hand, Shift-drag and the wheel pan by the screen delta, with no revision.
 - `minimap`: the map is off by default. Turn it on to see the canvas and navigate by click or drag. The choice survives a reload.
 - `cam-zoom`: zoom out and in around the centre; Cmd+0 goes to 100%; Fit all frames everything and turns auto-fit back on.
-- `focus`: the Focus action, or the agent's `focus_item`, fits one frame and hides the others. Exit focus or Escape returns.
+- `focus`: the Focus action, the toolbar toggle, or the agent's `focus_item` fits one frame and hides the others. The toggle, Exit focus, or Escape returns.
 - `focus-wheel`: in focus with Move, the wheel over the live page pans the camera, as Hand does. A scroll area inside the page keeps the wheel while it can still scroll.
 - `focus-large`: a 40-screen board opens at a readable zoom at the top, scrolls to both ends without leaving focus, hides other objects and restores the previous camera on exit.
 - `wheel-root-overflow`: overflowing body content under a hidden or clipped viewport never traps the wheel, in focus or with only selection.
@@ -22,7 +22,7 @@ A person pans with Hand, Shift-drag, the middle button or the wheel. They zoom w
 
 ## How to get to it (user POV)
 
-- Press H or hold Shift and drag. Use the zoom buttons, Cmd+wheel, the Focus action on a selected frame, and Escape.
+- Press H or hold Shift and drag. Use the zoom buttons or Cmd+wheel. Select a frame and use Focus in the toolbar to enter or exit focus. The top-right Exit focus action and Escape also exit focus.
 - Click the map icon in the zoom controls. Click the overview to jump or drag the viewport outline to pan.
 - An agent calls `show_items`, `focus_item`, `get_view` and `open_screen`.
 
@@ -88,6 +88,12 @@ expect dom.minimap=null
 ```screens id=focus
 add_object title=A files=fixture:plain x=0 y=0 height=300 as=@A
 add_object title=B files=fixture:plain x=500 y=0 height=300 as=@B
+click @A.title
+mark overview view
+click ui:"Focus selection"
+wait view.focus=focused:@A dom.@B.visible=false
+click ui:"Focus selection"
+wait view.focus=none dom.@B.visible=true view.camera=mark:overview storage.rev=doc.rev
 focus @A
 expect view.focus=focused:@A dom.@B.visible=false
 exit-focus

@@ -97,6 +97,10 @@ focus @A
 expect dom.layers=null
 click ui:Layers
 wait dom.layers.rows.size=6
+click ui:Comments
+expect view.comment.panelOpen=true dom.layers=null
+click ui:Layers
+wait view.comment.panelOpen=false dom.layers.rows.size=6
 ```
 
 ```screens id=layers-click
