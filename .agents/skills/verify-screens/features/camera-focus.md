@@ -5,6 +5,7 @@ A person pans with Hand, Shift-drag, the middle button or the wheel. They zoom w
 ## Sub-features
 
 - `cam-pan`: Hand, Shift-drag and the wheel pan by the screen delta, with no revision.
+- `minimap`: the map is off by default. Turn it on to see the canvas and navigate by click or drag. The choice survives a reload.
 - `cam-zoom`: zoom out and in around the centre; Cmd+0 goes to 100%; Fit all frames everything and turns auto-fit back on.
 - `focus`: the Focus action, or the agent's `focus_item`, fits one frame and hides the others. Exit focus or Escape returns.
 - `focus-wheel`: in focus with Move, the wheel over the live page pans the camera, as Hand does. A scroll area inside the page keeps the wheel while it can still scroll.
@@ -22,6 +23,7 @@ A person pans with Hand, Shift-drag, the middle button or the wheel. They zoom w
 ## How to get to it (user POV)
 
 - Press H or hold Shift and drag. Use the zoom buttons, Cmd+wheel, the Focus action on a selected frame, and Escape.
+- Click the map icon in the zoom controls. Click the overview to jump or drag the viewport outline to pan.
 - An agent calls `show_items`, `focus_item`, `get_view` and `open_screen`.
 
 ## Driving it with screens-cli
@@ -57,6 +59,30 @@ wheel 0,-100 --cmd
 expect view.camera.z>1 view.autoFit=false
 fit
 expect view.autoFit=true
+```
+
+```screens id=minimap
+expect dom.minimap=null
+click ui:Minimap
+expect dom.minimap.items=0
+add_object title=A files=fixture:plain x=0 y=0 height=300 as=@A
+zoom 100
+add_object title=B files=fixture:plain x=8000 y=0 height=300 as=@B
+expect dom.minimap.items=2
+mark
+click ui:"Canvas overview"
+expect view.camera.x<-3000 view.camera.z=1 dom.minimap.x>3000 doc.rev=+0 storage.rev=doc.rev
+mark
+drag ui:"Canvas overview" by 20,0
+expect view.camera.x<+-500 view.camera.z=1 dom.minimap.x>+500 doc.rev=+0
+mark
+zoom in
+expect view.camera.z=1.25 dom.minimap.width<+0
+view reload
+wait dom.minimap.items=2
+click ui:Minimap
+view reload
+expect dom.minimap=null
 ```
 
 ```screens id=focus

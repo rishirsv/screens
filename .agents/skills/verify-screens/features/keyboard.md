@@ -10,7 +10,7 @@ Every canvas action works from the keyboard. On a canvas, arrow keys move the se
 - `kbd-camera`: with nothing selected the arrows pan. Shift+1 fits all, Shift+2 frames the selection, and Cmd+= and Cmd+- zoom.
 - `kbd-focus`: Enter renames the selected item. F focuses it, Tab moves focus to the next item, and F or Escape leaves.
 - `kbd-toolbar`: clicking a toolbar button leaves keyboard focus on the canvas, so the arrows still pan.
-- `wheel-zoom`: Cmd plus scrolling up (deltaY < 0) zooms in and scrolling down zooms out, a pinch outward (Ctrl, deltaY < 0) zooms in, and Invert scroll flips both.
+- `wheel-zoom`: Cmd plus scrolling up (deltaY < 0) zooms in and scrolling down zooms out, a pinch outward (Ctrl, deltaY < 0) zooms in.
 - `lib-kbd-open`: in the library, Cmd+Down opens the focused Screen.
 
 ## How to get to it (user POV)
@@ -128,11 +128,6 @@ expect view.camera.z>1
 zoom 100
 wheel 0,100 --pinch
 expect view.camera.z<1
-invert-scroll on
-zoom 100
-wheel 0,-100 --cmd
-expect view.camera.z<1
-invert-scroll off
 ```
 
 ```screens id=lib-kbd-open

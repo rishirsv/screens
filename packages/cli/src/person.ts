@@ -215,7 +215,6 @@ export async function act(v: PersonView, a: PersonAction): Promise<{ readonly no
     case "redo": await key(v, "Mod+Shift+z"); return {};
     case "delete": await key(v, "Backspace"); return {};
     case "theme": if ((await probeView(v)).theme !== a.theme) await ui(v, "Theme"); return {};
-    case "invert-scroll": if ((await probeView(v)).invertScroll !== a.on) await ui(v, "Invert scroll"); return {};
     case "edit-title": {
       if (a.target.kind !== "ref") throw new Error("edit-title needs an item");
       const p = await locate(v, { ...a.target, part: "title", offset: null });

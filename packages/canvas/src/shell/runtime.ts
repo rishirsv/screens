@@ -97,7 +97,7 @@ export class CanvasRuntime {
     const theme = (safeStore.get("screens.theme") as "light" | "dark" | null) ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
     document.documentElement.dataset.theme = theme;
     this.view = initialViewState({ viewport: { width: innerWidth, height: innerHeight }, pointer: matchMedia("(pointer: coarse)").matches ? "coarse" : "fine",
-      dpr: devicePixelRatio, theme, invertScroll: safeStore.get("screens.invertScroll") === "1" });
+      dpr: devicePixelRatio, theme });
     this.env = { now: () => performance.now(), reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
       newId: () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join("") };
     this.unsubClient = client.subscribe(() => this.onClient());
@@ -345,7 +345,6 @@ export class CanvasRuntime {
     requestAnimationFrame(() => requestAnimationFrame(() => still.remove()));
     safeStore.set("screens.theme", theme); this.dispatch({ type: "theme", theme });
   }
-  setInvertScroll(on: boolean) { safeStore.set("screens.invertScroll", on ? "1" : "0"); this.dispatch({ type: "command", command: { kind: "invert-scroll", on } }); }
 
   // ── Live frames ──
 

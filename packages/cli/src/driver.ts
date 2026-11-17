@@ -711,7 +711,6 @@ function actionText(a: import("./script.ts").PersonAction): string {
     case "zoom": return `zoom ${a.how}`;
     case "focus": return `focus ${targetText(a.target)}`;
     case "theme": return `theme ${a.theme}`;
-    case "invert-scroll": return `invert-scroll ${a.on ? "on" : "off"}`;
     case "edit-title": return `edit-title ${targetText(a.target)} ${JSON.stringify(a.text)}`;
     case "rename-screen": return `rename-screen ${JSON.stringify(a.text)}`;
     case "drop": return `drop ${a.files.join(" ")} at ${targetText(a.at)}`;

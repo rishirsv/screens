@@ -27,7 +27,7 @@ export const VIEW_PROBE = {
   viewport: "include", pointer: "include", dpr: "include", theme: "include", camera: "include", autoFit: "include", moving: "include",
   animation: "summary", focus: "summary", tool: "include", shiftPanning: "include", pencil: "include", selection: "summary", interacting: "include",
   gesture: "summary", wheel: "omit:transient wheel accumulator", editing: "summary", comment: "include", deferredCommand: "summary", following: "include",
-  invertScroll: "include", capabilities: "include", pages: "include",
+  capabilities: "include", pages: "include",
 } as const satisfies Record<keyof ViewState, "include" | "summary" | `omit:${string}`>;
 
 /** What the person sees of agents: cursors and what they rest on, their labels, placeholders and their phase, off-screen markers,
@@ -147,7 +147,10 @@ export function installTestHook(rt: CanvasRuntime): void {
         }
         else if (root === "history") out.history = { ...st.history };
         else if (root === "dom") {
+          const map = document.querySelector(".screens-minimap");
+          const viewport = map?.querySelector(".screens-minimap-viewport");
           const d: Record<string, unknown> = {
+            minimap: viewport ? { items: map!.querySelectorAll(".screens-minimap-item").length, x: Number(viewport.getAttribute("x")), width: Number(viewport.getAttribute("width")) } : null,
             toast: toastText(),
             reconnecting: !!document.querySelector(".toast:not(.error)"),
             saving: !!document.querySelector(".screens-saving"),

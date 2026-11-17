@@ -36,7 +36,6 @@ export type PersonAction =
   | { readonly verb: "exit-focus" }
   | { readonly verb: "undo" } | { readonly verb: "redo" } | { readonly verb: "delete" }
   | { readonly verb: "theme"; readonly theme: "light" | "dark" }
-  | { readonly verb: "invert-scroll"; readonly on: boolean }
   | { readonly verb: "edit-title"; readonly target: Target; readonly text: string }
   | { readonly verb: "rename-screen"; readonly text: string }
   | { readonly verb: "toast"; readonly button: "retry" | "dismiss" }
@@ -238,7 +237,6 @@ export const VERBS: Readonly<Record<string, Verb>> = {
   redo: { group: "person", summary: "redo   (Mod+Shift+z)", parse: (c) => person(c, { verb: "redo" }) },
   delete: { group: "person", summary: "delete   (Backspace on the selection)", parse: (c) => person(c, { verb: "delete" }) },
   theme: { group: "person", summary: "theme light|dark", parse: (c) => person(c, { verb: "theme", theme: one(c.words[0], ["light", "dark"], "theme") }) },
-  "invert-scroll": { group: "person", summary: "invert-scroll on|off", parse: (c) => person(c, { verb: "invert-scroll", on: one(c.words[0], ["on", "off"], "invert-scroll") === "on" }) },
   "edit-title": { group: "person", summary: "edit-title T TEXT", parse: (c) => person(c, { verb: "edit-title", target: parseTarget(c.words[0] ?? usage("edit-title needs a target")), text: c.words.slice(1).join(" ") }) },
   "rename-screen": { group: "person", summary: "rename-screen TEXT", parse: (c) => person(c, { verb: "rename-screen", text: c.words.join(" ") }) },
   toast: { group: "person", summary: "toast retry|dismiss", parse: (c) => person(c, { verb: "toast", button: one(c.words[0], ["retry", "dismiss"], "toast") }) },
