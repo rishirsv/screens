@@ -43,7 +43,9 @@ body { background: var(--window); color: var(--text); font: var(--text-md) / var
 .screens-failure-actions .button.small { margin-left: 0; }
 
 /* Header controls keep an opaque surface when objects or pages scroll underneath. */
-.chrome.screens-canvas-head { max-width: calc(100% - 76px); padding: 3px; border-radius: var(--radius-pill); background: var(--surface); box-shadow: var(--shadow-panel); }
+.chrome.screens-canvas-head, .screens-right-actions { padding: 3px; border-radius: var(--radius-pill); background: var(--surface); box-shadow: var(--shadow-panel); }
+.chrome.screens-canvas-head { max-width: calc(100% - 76px); }
+.stage:has(.screens-focus-actions) .screens-canvas-head { max-width: calc(100% - 280px); }
 .chrome.screens-canvas-head > * { flex: none; }
 .chrome.screens-canvas-head > .screen-name { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; line-height: var(--control-lg); }
 
@@ -199,12 +201,19 @@ body { background: var(--window); color: var(--text); font: var(--text-md) / var
 .screens-details .field-row .screens-input { flex: 1; height: 24px; resize: none; }
 .screens-details .screens-swatch { flex: none; width: 14px; height: 14px; border-radius: 4px; box-shadow: 0 0 0 0.5px var(--line); }
 
-/* Focus actions sit on a slide of any color, so they share the toolbars' own surface instead of a translucent fill. */
-.screens-focus-actions { gap: 2px; }
-.screens-focus-actions .button { background: transparent; box-shadow: none; }
-.screens-focus-actions .button[aria-expanded="true"] { background: var(--control-active); }
+/* Focus controls and Comments share the top-right header. */
+.screens-focus-actions { display: flex; gap: 2px; }
+.screens-right-actions .button { background: transparent; box-shadow: none; white-space: nowrap; }
+.screens-focus-actions .icon { display: none; }
+.screens-right-actions .button[aria-expanded="true"] { background: var(--control-active); }
 @media (hover: hover) {
-  .screens-focus-actions .button:hover { background: var(--control-hover); }
+  .screens-right-actions .button:hover { background: var(--control-hover); }
+}
+@media (max-width: 520px) {
+  .stage:has(.screens-focus-actions) .screens-canvas-head { max-width: calc(100% - 180px); }
+  .screens-focus-actions .button { width: var(--control-lg); padding: 0; }
+  .screens-focus-actions .icon { display: block; }
+  .screens-focus-actions .button > span { display: none; }
 }
 
 /* Slide filmstrip: below the stage while a slide is focused */

@@ -123,6 +123,7 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
   useEffect(() => { setCompactLayersOpen(false); }, [focusId]);
   // The optional index is independent of comment placement and the active bubble.
   const commentsOpen = v.comment.panelOpen;
+  const toggleComments = () => rt.dispatch({ type: "command", command: { kind: "comments-panel", open: !commentsOpen } });
   const layersOpen = compactCanvas ? compactLayersOpen : wideLayersOpen;
   const toggleLayers = () => {
     if (compactCanvas) { setCompactLayersOpen(!compactLayersOpen); return; }
@@ -241,10 +242,12 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
               <Icon name={t.id} />
             </button>
           ))}
-          {/* Always present, so selecting never moves the tools; disabled without a single selected object. */}
-          <button className="tool" aria-label="Focus selection" title="Focus selection (F)"
-            disabled={!selectedItemId || base.items.find((i) => i.id === selectedItemId)?.kind !== "html-snapshot" || v.focus.mode === "focused"}
-            onClick={() => selectedItemId && rt.dispatch({ type: "command", command: { kind: "focus", itemId: selectedItemId } })}><Icon name="focus" /></button>
+          <button className="tool" aria-label="Focus selection" aria-pressed={focusId !== null} title={focusId ? "Exit focus (F)" : "Focus selection (F)"}
+            disabled={!focusId && (!selectedItemId || base.byId.get(selectedItemId)?.kind !== "html-snapshot")}
+            onClick={() => {
+              if (focusId) rt.dispatch({ type: "command", command: { kind: "exit-focus" } });
+              else if (selectedItemId) rt.dispatch({ type: "command", command: { kind: "focus", itemId: selectedItemId } });
+            }}><Icon name="focus" /></button>
           <span className="shell-divider" />
           <button className="tool" data-copy-image="" data-state={rt.copy?.state} aria-label={rt.copy?.state === "copied" ? "Copied" : "Copy as image (⇧⌘C)"} title="Copy as image (⇧⌘C)"
             disabled={!copyableItem(v, base)} onClick={() => rt.dispatch({ type: "command", command: { kind: "copy-image" } })}>
@@ -287,13 +290,21 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
 
       {!presenting && <PresenceOverlay rt={rt} roster={st.roster} items={doc.items} following={v.following} />}
       <div className="chrome top-right screens-stack screens-right">
-        <button className="button screens-comments-toggle" aria-label="Comments" aria-controls="screens-comments" aria-expanded={commentsOpen} onClick={() => rt.dispatch({ type: "command", command: { kind: "comments-panel", open: !commentsOpen } })}><Icon name="comment" />{base.threads.filter((t) => !t.resolved && (!presenting || (t.anchor.kind === "item" && v.focus.mode === "focused" && t.anchor.itemId === v.focus.itemId))).length || ""}</button>
+        <div className="shell screens-right-actions">
+          {!presenting && focusId && <>
+            <div className="screens-focus-actions" role="group" aria-label="Focus controls">
+              {base.layout === "slides" && <button className="button" aria-label="Slides" title="Slides" aria-expanded={filmOpen} onClick={toggleFilm}><Icon name="presentation" /><span>Slides</span></button>}
+              {editId && <button className="button" aria-label="Layers" title="Layers" aria-expanded={layersOpen && !commentsOpen} onClick={() => {
+                if (commentsOpen) toggleComments();
+                if (!commentsOpen || !layersOpen) toggleLayers();
+              }}><Icon name="panel" /><span>Layers</span></button>}
+              <button className="button" aria-label="Exit focus" title="Exit focus (Esc)" onClick={() => rt.dispatch({ type: "command", command: { kind: "exit-focus" } })}><Icon name="x" /><span>Exit focus</span></button>
+            </div>
+            <span className="shell-divider" />
+          </>}
+          <button className="button screens-comments-toggle" aria-label="Comments" title="Comments" aria-controls="screens-comments" aria-expanded={commentsOpen} onClick={toggleComments}><Icon name="comment" />{base.threads.filter((t) => !t.resolved && (!presenting || (t.anchor.kind === "item" && t.anchor.itemId === focusId))).length || ""}</button>
+        </div>
         {!presenting && st.roster.length > 0 && <PresenceRoster rt={rt} roster={st.roster} skew={st.rosterSkew} items={doc.items} following={v.following} hidden={rt.hiddenParticipants} />}
-        {!presenting && v.focus.mode === "focused" && <div className="shell screens-focus-actions">
-          {base.layout === "slides" && <button className="button" aria-expanded={filmOpen} onClick={toggleFilm}>Slides</button>}
-          {!commentsOpen && st.committed?.items[v.focus.itemId]?.kind === "html-snapshot" && <button className="button" aria-expanded={layersOpen} onClick={toggleLayers}>Layers</button>}
-          <button className="button" onClick={() => rt.dispatch({ type: "command", command: { kind: "exit-focus" } })}>Exit focus</button>
-        </div>}
         {!presenting && editId && <PieceEditor key={editId} rt={rt} itemId={editId} panel={focusId !== null && layersOpen && !commentsOpen} />}
         {commentsOpen && <CommentsPanel rt={rt} doc={base} view={v} />}
       </div>
