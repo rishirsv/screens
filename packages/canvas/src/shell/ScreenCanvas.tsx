@@ -7,11 +7,12 @@ import {
   HANDLES, PENCIL_COLORS, PRESENT_KEYS, PRESENT_PRELOAD, boundsOf, copyableItem, nextItem, PENCIL_SIZES, TOOLS, policyOf, presentFrame, presentIndex, presentThread, renderDocOf, slotBar, strokeBounds, strokePath,
   type DisplayItem, type DisplayStroke, type FramePresentation, type PagesView, type ViewState,
 } from "../engine/index.ts";
-import { CanvasRuntime, hitTargetOf, isControl, isEditable } from "./runtime.ts";
+import { CanvasRuntime, hitTargetOf, isControl, isEditable, safeStore } from "./runtime.ts";
 import { Icon } from "./icons.tsx";
 import { dockAt, Grip, SPOTS, useDock, type DockSpot } from "./Dock.tsx";
 import { CommentLayer, CommentOverlay, CommentsPanel } from "./Comments.tsx";
 import { PieceEditor } from "./Layers.tsx";
+import { Minimap } from "./Minimap.tsx";
 import { Filmstrip } from "./Filmstrip.tsx";
 import { PresenceLayer, PresenceOverlay, PresenceRoster } from "./Presence.tsx";
 
@@ -112,6 +113,11 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
   const [compactLayersOpen, setCompactLayersOpen] = useState(false);
   // On a wide canvas the person's choice to hide Layers holds across focus; on a compact one it starts closed each time.
   const [wideLayersOpen, setWideLayersOpen] = useState(() => { try { return localStorage.getItem("screens.layersOpen") !== "0"; } catch { return true; } });
+  const [minimapOpen, setMinimapOpen] = useState(() => safeStore.get("screens.minimapOpen") === "1");
+  const toggleMinimap = () => {
+    safeStore.set("screens.minimapOpen", minimapOpen ? "0" : "1");
+    setMinimapOpen(!minimapOpen);
+  };
   const compactCanvas = v.viewport.width <= 700;
   const focusId = v.focus.mode === "focused" ? v.focus.itemId : null;
   useEffect(() => { setCompactLayersOpen(false); }, [focusId]);
@@ -266,10 +272,11 @@ export function ScreenCanvas({ client, viewId, onRuntime, leading, trailing }: {
         )}
       </div>
 
+      {minimapOpen && !presenting && !focusId && <Minimap rt={rt} doc={doc} />}
       <div className="chrome screens-zoom" data-dock={zoomAt}>
         <div className="shell">
           <Grip label="Move zoom controls" spot={zoomAt} open={SPOTS.filter((s) => s !== toolsAt && !pagesHold.includes(s))} onDock={setZoomSpot} />
-          <button className="tool" aria-label="Invert scroll" title="Invert scroll" aria-pressed={v.invertScroll} onClick={() => rt.setInvertScroll(!v.invertScroll)}><Icon name="scroll" /></button>
+          <button className="tool" aria-label="Minimap" title="Minimap" aria-pressed={minimapOpen} disabled={focusId !== null} onClick={toggleMinimap}><Icon name="map" /></button>
           <button className="tool" aria-label="Theme" title="Theme" onClick={() => rt.setTheme(v.theme === "dark" ? "light" : "dark")}><Icon name={v.theme === "dark" ? "sun" : "moon"} /></button>
           <span className="shell-divider" />
           <button className="tool" aria-label="Zoom out" title="Zoom out" onClick={() => rt.dispatch({ type: "command", command: { kind: "zoom-out" } })}><Icon name="minus" /></button>

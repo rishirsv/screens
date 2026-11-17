@@ -57,10 +57,8 @@ get service.conns
 expect service.dev=true events.revisions>0 console.errors=0
 dump all as=state
 theme dark
-invert-scroll on
-expect view.theme=dark view.invertScroll=true
+expect view.theme=dark
 theme light
-invert-scroll off
 ```
 
 ## Gotchas

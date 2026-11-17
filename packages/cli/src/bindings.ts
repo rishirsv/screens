@@ -10,7 +10,7 @@ import type { Layer } from "./script.ts";
 export const COMMAND_VERBS = {
   "zoom-in": "zoom", "zoom-out": "zoom", "zoom-100": "zoom", "fit-all": "fit", focus: "focus", "exit-focus": "exit-focus",
   "select-tool": "tool", delete: "delete", undo: "undo", redo: "redo", "pencil-color": "pencil", "pencil-size": "pencil",
-  "invert-scroll": "invert-scroll", edit: "edit-title",
+  "center-camera": "click", edit: "edit-title",
   // Comment card and panel controls are reached by clicking them: @T.row, ui:Resolve, ui:Reopen, ui:Close, @c (Delete), ui:Resolved.
   "open-thread": "click", "resolve-thread": "click", "delete-comment": "click", "comment-filter": "click", "comments-panel": "click", "edit-comment": "click",
   reorder: "key", nudge: "key", "resize-by": "key", "select-next": "key", "zoom-to-selection": "key", "copy-image": "click",
@@ -25,7 +25,7 @@ export const INPUT_SOURCES = {
   "pointer-down": ["click", "drag", "press", "draw"], "pointer-move": ["drag", "move", "draw"], "pointer-up": ["click", "drag", "release", "draw"],
   "pointer-cancel": "runtime: lost pointer capture", "double-click": ["click", "edit-title"], wheel: ["wheel"], "key-down": ["key", "type", "undo", "redo", "delete", "zoom", "cancel"],
   "key-up": ["key"], "window-blur": ["inside"], bridge: ["inside"], tick: "runtime: animation frame", "camera-settled": "runtime: settle timer",
-  resize: "runtime: ResizeObserver (up --viewport)", "document-changed": "runtime: revision event", command: ["tool", "pencil", "zoom", "fit", "focus", "exit-focus", "invert-scroll", "rename-screen"],
+  resize: "runtime: ResizeObserver (up --viewport)", "document-changed": "runtime: revision event", command: ["tool", "pencil", "zoom", "fit", "focus", "exit-focus", "click", "drag", "rename-screen"],
   "title-commit": ["edit-title", "rename-screen"], "title-cancel": ["key"], "view-command": "runtime: agent show_items and focus_item", theme: ["theme"],
   "comment-submit": ["key"], "comment-composing": ["type"], "comment-cancel": ["key"],
   // Finder drops and paste, and dragging a Media drawer tile onto the canvas.

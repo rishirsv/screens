@@ -94,7 +94,6 @@ export interface ViewState {
   readonly comment: CommentSession & { readonly showResolved: boolean; readonly restore: CommentSession | null };
   /** The command's deadline uses the animation clock, independently of its wire timestamp. */
   readonly deferredCommand: (ViewCommand & { readonly expiresAt: number }) | null;
-  readonly invertScroll: boolean;
   readonly capabilities: { readonly comments: boolean };
   /** The participant whose work the camera follows (roster Follow). Any press, wheel, zoom or Escape releases it. */
   readonly following: string | null;
@@ -137,8 +136,8 @@ export type CanvasInput =
 
 export type WheelZoom = "none" | "cmd" | "pinch";
 /** Wheel delta to zoom exponent. Scrolling up (deltaY < 0) with Cmd or Ctrl zooms in, and so does a trackpad pinch
- *  outward, which browsers report as a Ctrl wheel with deltaY < 0. Invert scroll flips it. */
-export const wheelZoom = (dy: number, invert: boolean): number => -dy * WHEEL_ZOOM_K * (invert ? -1 : 1);
+ *  outward, which browsers report as a Ctrl wheel with deltaY < 0. */
+const wheelZoom = (dy: number): number => -dy * WHEEL_ZOOM_K;
 
 /** A file the shell has already read. No Blob reaches the engine: the runtime keeps the bytes under the hash. */
 export interface DroppedImage { readonly hash: string; readonly mediaType: string; readonly width: number; readonly height: number; readonly title: string }
@@ -162,7 +161,7 @@ export type Command =
   | { readonly kind: "focus"; readonly itemId: ItemId } | { readonly kind: "exit-focus" }
   | { readonly kind: "select-tool"; readonly tool: ToolId } | { readonly kind: "delete" } | { readonly kind: "undo" } | { readonly kind: "redo" }
   | { readonly kind: "pencil-color"; readonly color: string } | { readonly kind: "pencil-size"; readonly size: PencilSize }
-  | { readonly kind: "invert-scroll"; readonly on: boolean } | { readonly kind: "edit"; readonly editing: Editing }
+  | { readonly kind: "center-camera"; readonly at: Point } | { readonly kind: "edit"; readonly editing: Editing }
   /** Panel row or card Close (null). */
   | { readonly kind: "open-thread"; readonly threadId: ThreadId | null }
   | { readonly kind: "resolve-thread"; readonly threadId: ThreadId; readonly resolved: boolean }
@@ -206,12 +205,12 @@ export interface Step { readonly state: ViewState; readonly effects: readonly Ef
 
 export const ESCAPE_CHAIN = ["cancel-gesture", "clear-stroke-selection", "clear-comment", "clear-interacting", "exit-focus", "clear-selection", "tool-move"] as const;
 
-export function initialViewState(o: { viewport: Size; pointer: "fine" | "coarse"; dpr: number; theme: "light" | "dark"; invertScroll?: boolean }): ViewState {
+export function initialViewState(o: { viewport: Size; pointer: "fine" | "coarse"; dpr: number; theme: "light" | "dark" }): ViewState {
   return {
     viewport: o.viewport, pointer: o.pointer, dpr: o.dpr, theme: o.theme, camera: { x: 0, y: 0, z: 1 }, autoFit: true, moving: false, animation: null,
     focus: { mode: "none" }, tool: "move", shiftPanning: false, pencil: { color: defaultInk(o.theme), size: 6 },
     selection: { kind: "items", ids: [] }, interacting: null, gesture: null, wheel: { dx: 0, dy: 0, zoom: 0, anchor: { x: 0, y: 0 }, scheduled: false },
-    editing: null, comment: { draft: null, activeThreadId: null, parkedDraft: null, showResolved: false, expanded: false, panelOpen: false, editingCommentId: null, composing: false, restore: null }, deferredCommand: null, invertScroll: o.invertScroll ?? false, capabilities: { comments: true }, following: null,
+    editing: null, comment: { draft: null, activeThreadId: null, parkedDraft: null, showResolved: false, expanded: false, panelOpen: false, editingCommentId: null, composing: false, restore: null }, deferredCommand: null, capabilities: { comments: true }, following: null,
     pages: SCROLL,
   };
 }
@@ -277,7 +276,7 @@ function stepInner(s: ViewState, input: CanvasInput, doc: BaseDoc, env: Env, fx:
       const w = s.wheel;
       if (input.zoom === "none" && policy(s, doc).wheel === "vertical") input = { ...input, dx: 0 };
       const next = input.zoom !== "none"
-        ? { ...w, zoom: w.zoom + wheelZoom(input.dy, s.invertScroll), anchor: input.client }
+        ? { ...w, zoom: w.zoom + wheelZoom(input.dy), anchor: input.client }
         : { ...w, dx: w.dx + input.dx, dy: w.dy + input.dy };
       if (!w.scheduled) fx.push({ type: "request-frame" });
       return { ...s, wheel: { ...next, scheduled: true } };
@@ -307,7 +306,7 @@ function stepInner(s: ViewState, input: CanvasInput, doc: BaseDoc, env: Env, fx:
       // A wheel the page cannot scroll itself pans the canvas, as it would outside a live page.
       if (m.kind === "pan") return stepInner(s, { type: "wheel", dx: m.dx, dy: m.dy, zoom: "none", client: { x: s.viewport.width / 2, y: s.viewport.height / 2 } }, doc, env, fx);
       const anchor = { x: s.camera.x + (it.x + m.x) * s.camera.z, y: s.camera.y + (it.y + m.y) * s.camera.z };
-      return userCamera(s, zoomAround(s.camera, Math.exp(wheelZoom(m.dy, s.invertScroll)), anchor), doc, fx);
+      return userCamera(s, zoomAround(s.camera, Math.exp(wheelZoom(m.dy)), anchor), doc, fx);
     }
     case "command": return command(s, input.command, doc, env, fx);
     case "title-commit": {
@@ -895,6 +894,11 @@ function command(s: ViewState, c: Command, doc: BaseDoc, env: Env, fx: Effect[])
     case "zoom-in": return userCamera(s, zoomAround(s.camera, ZOOM_STEP_IN, center), doc, fx);
     case "zoom-out": return userCamera(s, zoomAround(s.camera, ZOOM_STEP_OUT, center), doc, fx);
     case "zoom-100": return userCamera(s, zoomAround(s.camera, 1 / s.camera.z, center), doc, fx);
+    case "center-camera": {
+      if (s.focus.mode === "focused" || presenting(s, doc)) return s;
+      const { z } = s.camera;
+      return userCamera({ ...s, animation: null }, { x: center.x - c.at.x * z, y: center.y - c.at.y * z, z }, doc, fx);
+    }
     case "fit-all": {
       if (s.focus.mode !== "none") return s;
       const cam = fitFor(s, doc, boundsOf(doc.items.map((i) => i.rect)));
@@ -986,7 +990,6 @@ function command(s: ViewState, c: Command, doc: BaseDoc, env: Env, fx: Effect[])
     case "redo": fx.push({ type: "redo" }); return s;
     case "pencil-color": return { ...s, pencil: { ...s.pencil, color: c.color } };
     case "pencil-size": return { ...s, pencil: { ...s.pencil, size: c.size } };
-    case "invert-scroll": return { ...s, invertScroll: c.on };
     case "edit": return { ...s, editing: c.editing };
     case "pages-view": return pagesView(s, c.view, doc, env, fx);
   }
