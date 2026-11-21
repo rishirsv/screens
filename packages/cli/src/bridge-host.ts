@@ -223,3 +223,58 @@ try{let result;if(m.method==='ui/initialize')result={protocolVersion:'2026-01-26
     throw new Error(`${(e as Error).message}; images: ${JSON.stringify(images)}; page errors: ${errors.join(" | ")}`);
   } finally { await context.close(); await adapter.close(); }
 }
+
+/** A host that shows the view but delivers none of its tool calls, as the Claude desktop Code tab does for servers that
+ *  Claude Code starts. The view must offer the local browser canvas from the tool result, and opening it must work. */
+export async function verifyRelayFallback(browser: Browser, home: string, screenId: string, service: Service, origins: readonly string[]): Promise<Record<string, unknown>> {
+  const adapter = new Client({ name: "screens-no-relay-host", version: "1" });
+  await adapter.connect(new StdioClientTransport({ command: process.execPath, args: [path.resolve("packages/mcp/src/main.ts"), "--host", "claude"], env: { ...process.env, SCREENS_HOME: home } as Record<string, string>, stderr: "ignore" }));
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
+  const page = await context.newPage();
+  const requests: string[] = [];
+  page.on("request", (req) => { if (origins.some((o) => req.url().startsWith(o)) || /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::|\/)/i.test(req.url())) requests.push(req.url()); });
+  try {
+    const opener = (await adapter.listTools()).tools.find((t) => t.name === "open_screen") as { _meta?: Record<string, any> } | undefined;
+    const uri = opener?._meta?.ui?.resourceUri as string | undefined;
+    if (!uri) throw new Error("open_screen does not name an MCP App resource");
+    const opened = await adapter.callTool({ name: "open_screen", arguments: { screenId } });
+    const url = (opened.structuredContent as { url?: string } | undefined)?.url;
+    if (!url) throw new Error("open_screen returned no local URL");
+    const app = ((await adapter.readResource({ uri })).contents[0] as { text?: string }).text;
+    if (!app) throw new Error("the canvas resource has no page");
+    // Some hosts drop structuredContent from the tool result, so this one sends only the text content.
+    const toolResult = { content: opened.content };
+    const host = `<!doctype html><html><head><style>html,body,iframe{margin:0;width:100%;height:100%;border:0}</style></head><body><iframe id="app"></iframe><script>
+window.__calls=0;window.__links=[];const app=document.getElementById('app');app.srcdoc=${JSON.stringify(app).replace(/</g, "\\u003c")};
+addEventListener('message',(e)=>{if(e.source!==app.contentWindow||!e.data||e.data.jsonrpc!=='2.0')return;const m=e.data;const reply=(r)=>e.source.postMessage({jsonrpc:'2.0',id:m.id,...r},'*');
+if(m.method==='ui/notifications/initialized'){e.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-input',params:{arguments:{screenId:${JSON.stringify(screenId)}}}},'*');e.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:${JSON.stringify(toolResult).replace(/</g, "\\u003c")}},'*');return;}
+if(m.id===undefined||!m.method)return;
+if(m.method==='ui/initialize')reply({result:{protocolVersion:'2026-01-26',hostCapabilities:{openLinks:{}},hostInfo:{name:'screens-no-relay',version:'1'}}});
+else if(m.method==='tools/call'){window.__calls++;reply({error:{code:-32603,message:'MCP error -32603: IPC not available for MCP tool call'}});}
+else if(m.method==='ui/open-link'){window.__links.push(m.params.url);reply({result:{}});}
+else reply({error:{code:-32601,message:'Method not found'}});});
+</script></body></html>`;
+    await page.route("https://screens.test/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: host }));
+    await page.goto("https://screens.test/");
+    await page.waitForFunction(() => document.querySelector("iframe")?.contentWindow?.document.querySelector("#root"));
+    const appFrame = page.frames().find((f) => f !== page.mainFrame())!;
+    await appFrame.locator("[data-relay-fallback]").waitFor({ timeout: 15000 });
+    const shownUrl = await appFrame.locator(".screens-relay-url").textContent();
+    if (shownUrl !== url) throw new Error(`the fallback shows ${shownUrl}, not the URL open_screen returned`);
+    await appFrame.getByRole("button", { name: "Open in browser", exact: true }).click();
+    await page.waitForFunction(() => (window as any).__links.length > 0, null, { timeout: 5000 });
+    const links = await page.evaluate(() => (window as any).__links as string[]);
+    if (links.length !== 1 || links[0] !== url) throw new Error(`the view asked the host to open ${JSON.stringify(links)}, not ${url}`);
+    const calls = await page.evaluate(() => (window as any).__calls as number);
+    if (requests.length) throw new Error(`the embedded view requested local origins: ${requests.join(", ")}`);
+    // The link the view hands the host opens the same Screen in the browser canvas.
+    const tab = await context.newPage();
+    await tab.goto(links[0]!);
+    for (let i = 0; i < 100 && !(await service.views()).some((v) => v.screenId === screenId && !v.app); i++) await new Promise((r) => setTimeout(r, 100));
+    if (!(await service.views()).some((v) => v.screenId === screenId && !v.app)) throw new Error("the browser canvas at the fallback URL never opened the Screen");
+    return { fallback: true, urlFromText: true, openLink: true, browserOpened: true, relayCalls: calls, localRequests: requests.length };
+  } catch (e) {
+    await page.screenshot({ path: path.join(home, "..", "evidence", "relay-fallback.png") }).catch(() => {});
+    throw e;
+  } finally { await context.close(); await adapter.close(); }
+}
