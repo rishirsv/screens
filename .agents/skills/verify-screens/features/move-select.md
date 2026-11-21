@@ -7,6 +7,7 @@ With the Move tool a person selects frames, drags one or several, snaps them to 
 - `sel-click`: a click selects, giving a ring and the Focus action; the page takes the pointer. A click on the background clears it.
 - `sel-marquee`: a background drag selects every frame it intersects. Escape mid-drag cancels it.
 - `drag-commit`: a drag shows pending until the commit, then commits one `moveItems` at the start plus the screen delta divided by zoom.
+- `drag-threshold`: a press that wobbles less than 5 screen px selects a frame without moving it, even zoomed out. Moving 5 px or more starts the move.
 - `drag-snap`: an edge within 8 screen px of another frame snaps exactly. Holding Cmd or Ctrl turns snapping off.
 - `delete`: Backspace removes the selection and the strokes drawn on it.
 - `rename`: double-clicking a title or clicking the Screen name edits it; Enter commits. The agent's `retitle_item` and `rename_screen` do the same.
@@ -49,6 +50,18 @@ expect pending.size=1 pending.0.type=moveItems dom.@A.sync=pending doc.rev=+0
 wait pending.size=0
 expect doc.rev=+1 doc.@A.x=100 doc.@A.y=-50 storage.rev=doc.rev events.revisions=+1
 diff
+```
+
+```screens id=drag-threshold
+add_object title=A files=fixture:plain x=0 y=0 width=800 height=600 as=@A
+add_object title=B files=fixture:plain x=2000 y=1500 width=800 height=600 as=@B
+fit
+mark
+drag @A by 4,0
+expect view.selection=[@A] doc.@A.x=0 doc.rev=+0
+click bg
+drag @A by 6,0
+expect view.selection=[@A] doc.@A.x>0 doc.rev=+1
 ```
 
 ```screens id=drag-snap
