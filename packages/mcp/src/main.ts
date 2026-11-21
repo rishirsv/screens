@@ -34,7 +34,7 @@ let svc: Service | null = null;
 async function service(): Promise<Service> {
   if (svc) return svc;
   reg = await ensureService();
-  svc = await connectLocalService({ origin: reg.canvasOrigin, token: reg.token, instanceId: reg.instanceId, role: "agent", name: server.server.getClientVersion()?.name });
+  svc = await connectLocalService({ origin: reg.canvasOrigin, token: reg.token, instanceId: reg.instanceId, role: "agent", host: host ?? undefined, name: server.server.getClientVersion()?.name });
   return svc;
 }
 
@@ -259,8 +259,8 @@ const snapshotRequest = (tool: string, a: { opId?: string }) => [tool, crypto.cr
 const sidebarSvg = fs.readFileSync(new URL(bundle ? "./sidebar.svg" : "../../../plugins/screens/assets/screens-icon.svg", import.meta.url));
 const sidebarIcons = (["light", "dark"] as const).map(theme => ({ src: `data:image/svg+xml;base64,${sidebarSvg.toString("base64")}`, mimeType: "image/svg+xml", sizes: ["any"], theme }));
 const server = new McpServer({ name: "screens", version: bundle?.version ?? "0.0.0-dev", icons: sidebarIcons }, { instructions: INSTRUCTIONS });
-// The MCP App canvas relay. Claude Code renders no MCP Apps, so its agents never see these app-only tools.
-if (host !== "claude") { registerAppTools(server); registerAppResource(server); }
+registerAppTools(server, host);
+registerAppResource(server);
 const screenId = z.string().describe("Screen ID");
 const opId = z.string().optional().describe("Operation ID for safe retries");
 
@@ -299,28 +299,21 @@ server.registerTool("get_guide", {
   inputSchema: { topic: z.enum(GUIDE_TOPICS) },
 }, async ({ topic }) => text(guide(topic, host)!));
 
-if (host === "codex") {
-  // Codex can open the same view from the sidebar or as a thread tab.
-  server.registerTool("open_screen", {
-    title: process.env.SCREENS_OPENING_CONFIG ? "Opening Bench" : "Screens",
-    description: `Open the Screens view, on a Screen when you give screenId, or on the library. ${openingCanvas(host)}`,
-    inputSchema: { screenId: screenId.optional() },
-    _meta: { ui: { resourceUri: APP_URI }, "openai/ui": { entrypoints: [{ type: "global" }, { type: "thread" }] } },
-  }, async ({ screenId }) => {
-    if (screenId) await (await service()).read(screenId);
-    return text({ screenId: screenId ?? null, open: openingCanvas(host) });
-  });
-} else {
-  server.registerTool("open_screen", {
-    description: `Return the canvas URL for a Screen. ${openingCanvas(host)}`,
-    inputSchema: { screenId, openBrowser: z.boolean().optional().describe("Open it in the system browser") },
-  }, async ({ screenId, openBrowser }) => {
-    await (await service()).read(screenId);
-    const url = `${reg!.canvasOrigin}/s/${screenId}`;
-    if (openBrowser) execFile(process.platform === "darwin" ? "open" : "xdg-open", [url]);
-    return text({ url, open: openingCanvas(host) });
-  });
-}
+server.registerTool("open_screen", {
+  title: process.env.SCREENS_OPENING_CONFIG ? "Opening Bench" : "Screens",
+  description: `Open the interactive Screens library or a specific Screen. ${openingCanvas(host)}`,
+  inputSchema: {
+    screenId: screenId.optional(),
+    openBrowser: z.boolean().optional().describe("Launch the system browser when the embedded view is unavailable or a browser is requested"),
+  },
+  _meta: { ui: { resourceUri: APP_URI }, "openai/ui": { entrypoints: [{ type: "global" }, { type: "thread" }] } },
+}, async ({ screenId, openBrowser }) => {
+  const s = await service();
+  if (screenId !== undefined) await s.read(screenId);
+  const url = screenId === undefined ? reg!.canvasOrigin : `${reg!.canvasOrigin}/s/${screenId}`;
+  if (openBrowser) execFile(process.platform === "darwin" ? "open" : "xdg-open", [url]);
+  return text({ screenId: screenId ?? null, url, open: openingCanvas(host) });
+});
 
 server.registerTool("get_screen", {
   description: "Read a Screen: its layout, items with kind, title, geometry, content version and poster hash, plus stroke count and revision. Items come back to front (on a Presentation or Document, in page order), all of them unless you pass limit; then next continues as cursor.",
@@ -651,13 +644,13 @@ server.registerTool("set_status", {
   return text({ ok: true, ...(placement ? { x: placement.x, y: placement.y, width: placement.w, height: placement.h } : {}) });
 });
 
-server.registerTool("get_view", { description: "What the person sees in the open canvas: selection, focused and interacting items, the visible world rect, the comment thread they have open, open comment threads in view, and the other agents on this Screen. Without screenId, the Screen most recently active in an open canvas; in Codex, in the Screens view. Reports when no canvas is open.", inputSchema: { screenId: screenId.optional() } },
-  async ({ screenId: given }) => {
+server.registerTool("get_view", { description: "What the person sees in the open canvas: selection, focused and interacting items, the visible world rect, the comment thread they have open, open comment threads in view, and the other agents on this Screen. Without screenId, the Screen most recently active in an open canvas; in the configured host’s Screens view. Use browser=true when working in the browser fallback. Reports when no canvas is open.", inputSchema: { screenId: screenId.optional(), browser: z.boolean().optional() } },
+  async ({ screenId: given, browser }) => {
     const s = await service();
-    // In Codex the person looks at the Screens view, not a browser tab that may also be open on this library.
-    const id = given ?? (await s.views()).find((v) => host !== "codex" || v.app)?.screenId;
+    const app = browser ? false : host ? true : undefined;
+    const id = given ?? (await s.views()).find((v) => app === undefined || v.app === app)?.screenId;
     if (!id) return text({ open: false, view: null, screenId: null });
-    const [ctx, doc] = await Promise.all([s.readContext(id, laneFor(id, [], false), host === "codex"), s.read(id)]);
+    const [ctx, doc] = await Promise.all([s.readContext(id, laneFor(id, [], false), app), s.read(id)]);
     return text({ screenId: id, ...ctx, revision: doc.revision, comments: ctx.view ? nearbyThreads(doc, ctx.view) : [] });
   });
 
@@ -832,8 +825,8 @@ server.registerTool("op_status", { description: "Outcome by opId: accepted, comm
   async ({ opId }) => text(await (await service()).status(opId)));
 
 // The SDK's high-level tool registration omits icons from tools/list. Preserve its
-// handler and add the standard icon metadata to the Codex global entrypoint.
-if (host === "codex") {
+// handler and add the standard icon metadata to the global entrypoint.
+{
   const handlers = (server.server as unknown as { _requestHandlers: Map<string, (request: unknown, extra: unknown) => Promise<{ tools: Array<{ name: string; icons?: typeof sidebarIcons }> }> | { tools: Array<{ name: string; icons?: typeof sidebarIcons }> }> })._requestHandlers;
   const listTools = handlers.get("tools/list")!;
   handlers.set("tools/list", async (request, extra) => {

@@ -77,7 +77,7 @@ export type Step =
   | { readonly kind: "service"; readonly action: "restart" | "reset" | "kill" | "terminate" | "log"; readonly lines: number }
   /** Kill and respawn the MCP adapter, as when an agent host restarts it. */
   | { readonly kind: "adapter"; readonly action: "restart" | "open" | "close"; readonly name: string }
-  | { readonly kind: "probe"; readonly suite: "security" | "discovery" | "identity" | "idle" | "port" | "results" | "thumbnails" | "bridge" | "frame-messages" | "history-replay" | "history-invariants"; readonly tool?: string }
+  | { readonly kind: "probe"; readonly suite: "security" | "discovery" | "identity" | "idle" | "port" | "results" | "thumbnails" | "bridge" | "bridge-claude" | "frame-messages" | "history-replay" | "history-invariants"; readonly tool?: string }
   | { readonly kind: "doctor" }
   | { readonly kind: "tools" };
 
@@ -272,7 +272,7 @@ export const VERBS: Readonly<Record<string, Verb>> = {
   service: { group: "session", summary: "service restart|reset|kill|terminate|log [N]   (reset: an empty library)", parse: (c) => ({ kind: "service", action: one(c.words[0], ["restart", "reset", "kill", "terminate", "log"], "service"), lines: c.words[1] ? num(c.words[1], "lines") : 20 }) },
   agent: { group: "session", summary: "agent restart | open NAME | close NAME", parse: (c) => { const action = one(c.words[0], ["restart", "open", "close"], "agent"); return { kind: "adapter", action, name: c.words[1] ?? "main" }; } },
   fault: { group: "session", summary: "fault delay-commit MS [count=N] | fail-commit storage|conflict [count=N] | drop-result [count=N] | crash before-write|after-content-flush|after-temp-write|after-temp-flush|after-rename|after-write | disk-full content|poster|document | corrupt-document @S [json|schema|threads] | disconnect | no-browser [count=N] | drop-upload after=N [count=N] | fail-upload after=N | corrupt-upload [count=N] | expire-uploads | expire-presence | clear", parse: (c) => ({ kind: "fault", fault: parseFault(c) }) },
-  probe: { group: "session", summary: "probe security|discovery|identity|idle|port|results|thumbnails|bridge|frame-messages|history-replay|history-invariants [tool=TOOL]", parse: (c) => { return { kind: "probe", suite: one(c.words[0], ["security", "discovery", "identity", "idle", "port", "results", "thumbnails", "bridge", "frame-messages", "history-replay", "history-invariants"], "probe"), tool: c.kv.get("tool") }; } },
+  probe: { group: "session", summary: "probe security|discovery|identity|idle|port|results|thumbnails|bridge|bridge-claude|frame-messages|history-replay|history-invariants [tool=TOOL]", parse: (c) => { return { kind: "probe", suite: one(c.words[0], ["security", "discovery", "identity", "idle", "port", "results", "thumbnails", "bridge", "bridge-claude", "frame-messages", "history-replay", "history-invariants"], "probe"), tool: c.kv.get("tool") }; } },
   doctor: { group: "session", summary: "doctor", parse: () => ({ kind: "doctor" }) },
   tools: { group: "session", summary: "tools   (MCP tools and their arguments; * marks required)", parse: () => ({ kind: "tools" }) },
   shot: { group: "evidence", summary: "shot [T] [as=NAME]", parse: (c) => ({ kind: "shot", target: c.words[0] ? parseTarget(c.words[0]) : null, name: c.bind, view: c.view }) },

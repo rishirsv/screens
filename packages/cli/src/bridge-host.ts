@@ -8,9 +8,9 @@ import type { Browser } from "playwright-core";
 import type { Service } from "@screens/client";
 import { FILE_FIXTURES, FIXTURES } from "./fixtures.ts";
 
-export async function verifyBridge(browser: Browser, home: string, screenId: string, service: Service, secret: string, origins: readonly string[], messagesOnly = false): Promise<Record<string, unknown>> {
+export async function verifyBridge(browser: Browser, home: string, screenId: string, service: Service, secret: string, origins: readonly string[], messagesOnly = false, adapterHost: "claude" | "codex" = "codex"): Promise<Record<string, unknown>> {
   const adapter = new Client({ name: "screens-bridge-host", version: "1" });
-  const transport = new StdioClientTransport({ command: process.execPath, args: [path.resolve("packages/mcp/src/main.ts"), "--host", "codex"], env: { ...process.env, SCREENS_HOME: home } as Record<string, string>, stderr: "ignore" });
+  const transport = new StdioClientTransport({ command: process.execPath, args: [path.resolve("packages/mcp/src/main.ts"), "--host", adapterHost], env: { ...process.env, SCREENS_HOME: home } as Record<string, string>, stderr: "ignore" });
   await adapter.connect(transport);
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
   const page = await context.newPage();
@@ -26,7 +26,7 @@ export async function verifyBridge(browser: Browser, home: string, screenId: str
     return r;
   };
   try {
-    // Both Codex entrypoints open the adapter's own ui:// resource with empty arguments.
+    // Both entrypoints open the adapter's own ui:// resource with empty arguments.
     const opener = (await adapter.listTools()).tools.find((t) => t.name === "open_screen") as { _meta?: Record<string, any> } | undefined;
     const uri = opener?._meta?.ui?.resourceUri as string | undefined;
     const entries = opener?._meta?.["openai/ui"]?.entrypoints;
@@ -36,7 +36,7 @@ export async function verifyBridge(browser: Browser, home: string, screenId: str
     const resource = (await adapter.readResource({ uri })).contents[0] as { text?: string; mimeType?: string; _meta?: Record<string, any> };
     if (resource?.mimeType !== "text/html;profile=mcp-app" || !resource.text || !resource._meta?.ui?.csp) throw new Error("the canvas resource is not an MCP App page with a CSP");
     const app = resource.text;
-    await tool("open_screen", { screenId });
+    const opened = (await tool("open_screen", { screenId })).structuredContent as { url: string };
     await page.exposeBinding("__appTool", async (_source, name: string, args: Record<string, unknown>) => {
       if (name === "_screens_call" && args.kind === "chunk") uploadChunks++;
       if (!["_screens_call", "_screens_events", "_screens_content"].includes(name)) throw new Error("unexpected app tool");
@@ -128,20 +128,34 @@ try{let result;if(m.method==='ui/initialize')result={protocolVersion:'2026-01-26
       const img = document.querySelector<HTMLImageElement>(`[data-item="${itemId}"] img`);
       return !!img && img.naturalWidth > 0 && img.currentSrc.startsWith("data:");
     }, image.id, { timeout: 10000 });
-    // A browser tab on another Screen of this library does not redirect the Codex view lookup.
+    // A browser tab on another Screen of this library does not redirect the embedded view lookup.
     const other = (await tool("create_screen", { title: "Browser tab" })).structuredContent as { id: string };
-    const registry = JSON.parse(fs.readFileSync(path.join(home, "service.json"), "utf8")) as { canvasOrigin: string };
+    const fallback = (await tool("open_screen", { screenId: other.id })).structuredContent as { url: string };
     const tab = await context.newPage();
-    await tab.goto(`${registry.canvasOrigin}/s/${other.id}`);
+    await tab.goto(fallback.url);
     for (let i = 0; i < 100 && !(await service.views()).some((v) => v.screenId === other.id && !v.app); i++) await new Promise((r) => setTimeout(r, 100));
     if (!(await service.views()).some((v) => v.screenId === other.id && !v.app)) throw new Error("the browser tab never reported its view");
+    const browserView = (await tool("get_view", { browser: true })).structuredContent as { screenId?: string };
+    if (browserView?.screenId !== other.id) throw new Error("get_view did not find the browser fallback");
     const scoped = (await tool("get_view", {})).structuredContent as { screenId?: string };
-    if (scoped.screenId !== screenId) throw new Error(`get_view without screenId followed a browser tab to ${scoped.screenId}, not the Codex view`);
-    // A browser tab on the same Screen keeps its own view: the Codex view's entry survives the tab's newer one.
-    await tab.goto(`${registry.canvasOrigin}/s/${screenId}`);
+    if (scoped.screenId !== screenId) throw new Error(`get_view without screenId followed a browser tab to ${scoped.screenId}, not the embedded view`);
+    // A browser tab on the same Screen keeps its own view: the embedded view's entry survives the tab's newer one.
+    await tab.goto(opened.url);
     for (let i = 0; i < 100 && !(await service.views()).some((v) => v.screenId === screenId && !v.app); i++) await new Promise((r) => setTimeout(r, 100));
     const same = (await tool("get_view", {})).structuredContent as { screenId?: string; view?: { sessionId?: string } };
-    if (same.screenId !== screenId || same.view?.sessionId !== viewSession) throw new Error(`with a browser tab on the same Screen, get_view read ${same.screenId}/${same.view?.sessionId}, not the Codex view ${viewSession}`);
+    if (same.screenId !== screenId || same.view?.sessionId !== viewSession) throw new Error(`with a browser tab on the same Screen, get_view read ${same.screenId}/${same.view?.sessionId}, not the embedded view ${viewSession}`);
+    // The other host shares the library but has no embedded view in this session.
+    const peer = new Client({ name: "screens-peer-host", version: "1" });
+    try {
+      await peer.connect(new StdioClientTransport({
+        command: process.execPath, args: [path.resolve("packages/mcp/src/main.ts"), "--host", adapterHost === "codex" ? "claude" : "codex"],
+        env: { ...process.env, SCREENS_HOME: home } as Record<string, string>, stderr: "ignore",
+      }));
+      for (const args of [{}, { screenId }]) {
+        const result = await peer.callTool({ name: "get_view", arguments: args });
+        if ((result.structuredContent as { open?: boolean })?.open !== false) throw new Error("get_view followed the other host's embedded canvas");
+      }
+    } finally { await peer.close(); }
     await tab.close();
     // A draft streamed in parts closer together than half a second still shows progress before it commits.
     await tool("set_status", { screenId, name: "Streamer", text: "Writing a draft", new: true });

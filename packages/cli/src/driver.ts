@@ -447,10 +447,10 @@ export class Driver {
           const app = await verifyBridge(this.browser, this.spec.home, this.screen, this.observer, this.devSecret, [this.reg.canvasOrigin, this.reg.frameOrigin], true);
           return { text: `probe frame-messages ${JSON.stringify({ browser, app })}`, data: { browser, app } };
         }
-        if (s.suite === "bridge") {
+        if (s.suite === "bridge" || s.suite === "bridge-claude") {
           if (!this.screen) throw new StepError("open a Screen before the bridge probe");
-          const data = await verifyBridge(this.browser, this.spec.home, this.screen, this.observer, this.devSecret, [this.reg.canvasOrigin, this.reg.frameOrigin]);
-          return { text: `probe bridge ${JSON.stringify(data)}`, data };
+          const data = await verifyBridge(this.browser, this.spec.home, this.screen, this.observer, this.devSecret, [this.reg.canvasOrigin, this.reg.frameOrigin], false, s.suite === "bridge-claude" ? "claude" : "codex");
+          return { text: `probe ${s.suite} ${JSON.stringify(data)}`, data };
         }
         if (s.suite === "thumbnails") {
           const doc = this.doc(); if (!doc) throw new StepError("open a Screen before requesting thumbnails");

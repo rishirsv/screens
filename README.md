@@ -37,7 +37,11 @@ claude plugin marketplace add "$HOME/.local/share/screens/marketplace"
 claude plugin install screens@screens-local
 ```
 
-Ask Claude to open Screens in its browser pane or your system browser.
+Ask Claude Code to open Screens. In the desktop Code tab, `open_screen` opens the interactive canvas. It opens the library by default or a specific Screen when given its ID.
+
+Some Claude Code builds can display the canvas from a plugin but cannot send its actions back to the service. For local MCP App support through Claude Desktop, copy the staged plugin’s `screens` server entry from `~/.local/share/screens/marketplace/screens/.mcp.json` into the `mcpServers` section of `claude_desktop_config.json` (Settings → Developer → Edit Config). Restart Claude Desktop and use the Desktop-registered server in the Code tab.
+
+In either host, if the embedded view is unavailable or cannot connect, open the local URL returned by `open_screen`. This also works from a terminal. Pass `openBrowser: true` to launch the system browser explicitly.
 
 Try this prompt:
 

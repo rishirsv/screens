@@ -129,7 +129,7 @@ export type ImportOutcome =
 export type ClientMessage =
   /** name: the agent host's client name (MCP clientInfo), shown on the canvas. */
   /** surface "app": a canvas relayed from an MCP App view (Codex), not a browser tab. */
-  | { readonly t: "hello"; readonly protocol: number; readonly token: string; readonly role: "canvas" | "agent"; readonly sessionId?: SessionId; readonly name?: string; readonly surface?: "app" }
+  | { readonly t: "hello"; readonly protocol: number; readonly token: string; readonly role: "canvas" | "agent"; readonly sessionId?: SessionId; readonly name?: string; readonly host?: "claude" | "codex"; readonly surface?: "app" }
   | { readonly t: "open"; readonly reqId: string; readonly screenId: ScreenId }
   /** request: the caller's own input, when the op is derived from state that can change before a retry (a comment point in
    *  item pixels becomes fractions of the item's current size). The receipt then compares request, not op.

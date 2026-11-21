@@ -131,7 +131,7 @@ export interface Service {
 }
 
 /** name: an agent host's client name, shown on the canvas. */
-export interface ConnectOptions { readonly origin: string; readonly token: string; readonly role: "canvas" | "agent"; readonly sessionId?: string; readonly instanceId?: string; readonly name?: string; readonly surface?: "app" }
+export interface ConnectOptions { readonly origin: string; readonly token: string; readonly role: "canvas" | "agent"; readonly sessionId?: string; readonly instanceId?: string; readonly name?: string; readonly host?: "claude" | "codex"; readonly surface?: "app" }
 
 export const newId = (): string => crypto.randomUUID();
 
@@ -165,7 +165,7 @@ export async function connectWebSocketTransport(o: ConnectOptions): Promise<Serv
     let welcomed = false;
     const timer = setTimeout(() => { reject(new Error("Screens handshake timed out")); sock.close(); }, 3000);
     sock.onerror = () => { /* close supplies the connection failure */ };
-    sock.onopen = () => sock.send(JSON.stringify({ t: "hello", protocol: PROTOCOL_VERSION, token: o.token, role: o.role, sessionId: sessionId || undefined, ...(o.name ? { name: o.name } : {}), ...(o.surface ? { surface: o.surface } : {}) } satisfies ClientMessage));
+    sock.onopen = () => sock.send(JSON.stringify({ t: "hello", protocol: PROTOCOL_VERSION, token: o.token, role: o.role, sessionId: sessionId || undefined, ...(o.name ? { name: o.name } : {}), ...(o.host ? { host: o.host } : {}), ...(o.surface ? { surface: o.surface } : {}) } satisfies ClientMessage));
     sock.onmessage = (ev) => {
       let m: ServerMessage;
       try { m = JSON.parse(String(ev.data)) as ServerMessage; if (!m || typeof m !== "object") throw new Error(); }
@@ -293,7 +293,7 @@ export function connectService(transport: ServiceTransport): Service {
     readContent: async (hash) => base64ToBytes(await request<string>({ t: "readContent", hash })),
     montage: (screenId, o = {}) => request<MontageAnswer>({ t: "montage", screenId, ...o }),
     poster: (screenId, itemId, pieces, contentVersion) => request<PosterAnswer>({ t: "poster", screenId, itemId, ...(pieces?.length ? { pieces } : {}), ...(contentVersion ? { contentVersion } : {}) }),
-    readContext: (screenId, lane, app) => request({ t: "readContext", screenId, ...(lane ? { lane } : {}), ...(app ? { app } : {}) }),
+    readContext: (screenId, lane, app) => request({ t: "readContext", screenId, ...(lane ? { lane } : {}), ...(app !== undefined ? { app } : {}) }),
     views: () => request({ t: "views" }),
     viewCommand: (screenId, command) => request({ t: "viewCommand", screenId, command }),
     presence: (screenId, patch, lane) => request({ t: "presence", screenId, patch, ...(lane ? { lane } : {}) }),

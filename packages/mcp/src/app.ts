@@ -15,7 +15,7 @@ const meta = { ui: { visibility: ["app"] } };
 const result = (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(value) }], structuredContent: { value } });
 type Session = { transport: ServiceTransport; up: boolean; sequence: number; events: { seq: number; message: ServerMessage }[]; wake: Set<() => void>; touched: number };
 
-export function registerAppTools(server: McpServer): void {
+export function registerAppTools(server: McpServer, host: "claude" | "codex" | null): void {
   const openingOut = process.env.SCREENS_OPENING_OUT;
   if (process.env.SCREENS_OPENING_CONFIG && openingOut) {
     const out = path.resolve(openingOut), library = path.join(screensHome(), "library");
@@ -42,7 +42,7 @@ export function registerAppTools(server: McpServer): void {
     if (!pending) {
       pending = (async () => {
         const reg = await ensureService();
-        const transport = await connectWebSocketTransport({ origin: reg.canvasOrigin, token: reg.token, instanceId: reg.instanceId, role: "canvas", surface: "app" });
+        const transport = await connectWebSocketTransport({ origin: reg.canvasOrigin, token: reg.token, instanceId: reg.instanceId, role: "canvas", surface: "app", host: host ?? undefined });
         const session: Session = { transport, up: true, sequence: 0, events: [], wake: new Set(), touched: Date.now() };
         const push = (message: ServerMessage) => {
           session.events.push({ seq: ++session.sequence, message });
@@ -122,6 +122,6 @@ export function registerAppResource(server: McpServer): void {
       adapterIdentity: { name: bundle?.name ?? "screens-worktree", version: bundle?.version ?? "source", source: bundle ? "release" : "worktree", sha256: crypto.createHash("sha256").update(fs.readFileSync(fileURLToPath(import.meta.url))).digest("hex") } }) : "";
     const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Screens</title><style>${css.replace(/<\/style/gi, "<\\/style")}</style><script>window.__SCREENS_APP__=true;${opening}</script></head><body><div id="root"></div><script type="module">${js.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
     return { contents: [{ uri: APP_URI, mimeType: "text/html;profile=mcp-app", text: html,
-      _meta: { ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false }, "openai/ui": { availableDisplayModes: ["fullscreen"], preferredDisplayMode: "fullscreen" } } }] };
+      _meta: { ui: { preferredDisplayMode: "fullscreen", csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false }, "openai/ui": { availableDisplayModes: ["fullscreen"], preferredDisplayMode: "fullscreen" } } }] };
   });
 }

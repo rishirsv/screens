@@ -45,4 +45,4 @@ async function boot() {
   observer?.mount((path) => navigate(path));
 }
 
-boot().catch((e) => { document.body.textContent = `Screens could not start: ${e instanceof Error ? e.message : e}`; });
+boot().catch((e) => { document.body.textContent = `Screens could not start: ${e instanceof Error ? e.message : e}.${window.__SCREENS_APP__ ? " Open the local browser URL returned by open_screen to continue." : ""}`; });

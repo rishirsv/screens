@@ -1,6 +1,6 @@
 # Screens
 
-Screens is a local canvas where a person and an agent create, arrange, and comment on HTML designs. It runs in Codex as an MCP App and in Claude Code through a local browser view.
+Screens is a local canvas where a person and an agent create, arrange, and comment on HTML designs. It runs as an MCP App in Codex and Claude Code, with a local browser fallback in both hosts.
 
 ## Code
 

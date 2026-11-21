@@ -32,7 +32,7 @@ const IDLE_EXIT_MS = 5 * 60_000;
 const LIBRARY = "@library";
 const THUMB_EDGE = 384;
 
-interface Conn { ws: WebSocket; sessionId: string; role: "canvas" | "agent"; app?: boolean; screens: Set<string>; library: boolean; authed: boolean }
+interface Conn { ws: WebSocket; sessionId: string; role: "canvas" | "agent"; app?: boolean; host?: "claude" | "codex"; screens: Set<string>; library: boolean; authed: boolean }
 /** payload is a digest of what the caller asked for (payloadKey), compared on every replay. */
 interface Receipt { screenId: string; payload: string; outcome: Outcome | ImportOutcome }
 const payloadKey = (v: unknown) => crypto.createHash("sha256").update(JSON.stringify(v)).digest("hex");
@@ -82,11 +82,11 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
   const stacks = new Map<string, Stack>(); // `${sessionId}:${screenId}`
   const libStacks = new Map<string, LibraryStack>(); // sessionId
   /** Each canvas connection's view of each Screen. A browser tab and an MCP App view on one Screen keep separate entries. */
-  type Viewed = ViewContext & { sessionId: string; at: number; app: boolean };
+  type Viewed = ViewContext & { sessionId: string; at: number; app: boolean; host?: Conn["host"] };
   const contexts = new Map<string, Map<string, Viewed>>();
   /** The most recently active view of a Screen; app limits it to MCP App views. */
-  const latestView = (screenId: string, app?: boolean): Viewed | undefined =>
-    [...(contexts.get(screenId)?.values() ?? [])].filter((x) => !app || x.app).sort((a, b) => b.at - a.at)[0];
+  const latestView = (screenId: string, app?: boolean, host?: Conn["host"]): Viewed | undefined =>
+    [...(contexts.get(screenId)?.values() ?? [])].filter((x) => (app === undefined || app === x.app) && (!x.app || !host || x.host === host)).sort((a, b) => b.at - a.at)[0];
   const dropView = (screenId: string, sessionId: string) => { const m = contexts.get(screenId); if (m?.delete(sessionId) && !m.size) contexts.delete(screenId); };
   const conns = new Set<Conn>();
   const pendingCommands = new Map<string, (o: ViewCommandOutcome) => void>();
@@ -576,10 +576,10 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
       case "poster": return objectPoster(m.screenId, m.itemId, m.pieces, m.contentVersion);
       case "montage": return screenMontage(m.screenId, m.rect, m.maxSize, m.labels ?? true);
       case "readContext": {
-        const ctx = latestView(m.screenId, m.app), others = presence.others(m.screenId, c, m.lane);
+        const ctx = latestView(m.screenId, m.app, c.host), others = presence.others(m.screenId, c, m.lane);
         return ctx ? { view: ctx, open: true, others } : { view: null, open: false, others };
       }
-      case "views": return [...contexts].flatMap(([screenId, m]) => [...m.values()].map((x) => ({ screenId, at: x.at, app: x.app }))).sort((a, b) => b.at - a.at);
+      case "views": return [...contexts].flatMap(([screenId, m]) => [...m.values()].filter((x) => !x.app || !c.host || x.host === c.host).map((x) => ({ screenId, at: x.at, app: x.app }))).sort((a, b) => b.at - a.at);
       case "presence": {
         if (c.role !== "agent") throw codeError("forbidden", "only agents set a status");
         if (!getDoc(m.screenId)) throw codeError("not-found", `Screen ${m.screenId} not found`);
@@ -684,6 +684,7 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
     if (!c.authed) {
       if (m.t !== "hello" || m.protocol !== PROTOCOL_VERSION || !safeEqual(m.token, token)) { c.ws.close(4401, "unauthorized"); return; }
       c.authed = true; c.role = m.role === "agent" ? "agent" : "canvas"; c.app = c.role === "canvas" && m.surface === "app";
+      if (m.host === "codex" || m.host === "claude") c.host = m.host;
       if (c.role === "agent") presence.hello(c, typeof m.name === "string" ? m.name : undefined);
       if (typeof m.sessionId === "string" && /^[\w-]{8,64}$/.test(m.sessionId)) c.sessionId = m.sessionId;
       send(c, { t: "welcome", instanceId, sessionId: c.sessionId, protocol: PROTOCOL_VERSION });
@@ -694,7 +695,7 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
         if (!c.screens.has(m.screenId)) return;
         presence.personMoving(c, m.screenId, m.rects ? Object.keys(m.rects) : null);
         broadcast(m.screenId, { t: "transient", screenId: m.screenId, sessionId: c.sessionId, rects: m.rects }, c); return;
-      case "context": if (c.role === "canvas" && c.screens.has(m.screenId)) { if (!contexts.has(m.screenId)) contexts.set(m.screenId, new Map()); contexts.get(m.screenId)!.set(c.sessionId, { ...m.context, sessionId: c.sessionId, at: Date.now(), app: !!c.app }); } return;
+      case "context": if (c.role === "canvas" && c.screens.has(m.screenId)) { if (!contexts.has(m.screenId)) contexts.set(m.screenId, new Map()); contexts.get(m.screenId)!.set(c.sessionId, { ...m.context, sessionId: c.sessionId, at: Date.now(), app: !!c.app, host: c.host }); } return;
       case "leave": dropView(m.screenId, c.sessionId); return;
       case "viewCommandAnswer": { const r = pendingCommands.get(m.id); if (r) { pendingCommands.delete(m.id); r(m.outcome); } return; }
       case "hello": return;

@@ -96,7 +96,15 @@ try {
     assert(Date.now() < deadline, "Service did not stop");
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  const { client: claude } = await connect("claude");
+  const { client: claude, tools: claudeTools } = await connect("claude");
+  assert.equal(claudeTools.find((tool) => tool.name === "open_screen")?._meta?.ui?.resourceUri, resource);
+  const claudeView = await claude.readResource({ uri: resource });
+  assert.equal(claudeView.contents[0]._meta.ui.preferredDisplayMode, "fullscreen");
+  const library = await tool(claude, "open_screen", {});
+  assert.equal(library.screenId, null);
+  const opened = await tool(claude, "open_screen", { screenId: created.id });
+  assert.equal(opened.url, `${library.url}/s/${created.id}`);
+  assert((await fetch(opened.url)).ok, "Browser fallback is unreachable");
   const after = await tool(claude, "get_screen", { screenId: created.id });
   assert.deepEqual(after, before, "Screen did not survive the service restart");
 

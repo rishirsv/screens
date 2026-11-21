@@ -3,10 +3,12 @@
 export type Host = "claude" | "codex" | null;
 
 /** Where the person sees a Screen, per host. */
-export const openingCanvas = (host: Host): string =>
-  host === "claude" ? `In the Claude desktop app, open the URL open_screen returns in the built-in browser pane (call preview_start with that url). From the Claude Code CLI, pass openBrowser: true to open the system browser. Always use the 127.0.0.1 URL it returns: a localhost URL loads but cannot connect.`
-  : host === "codex" ? `In Codex, open the Screens view from the sidebar or as a thread tab through More tools. get_view without screenId says which Screen the most recently active Screens view has open: work there. If no view is open, call open_screen (with the screenId you will work on) to open it first.`
-  : `open_screen returns the canvas URL on 127.0.0.1. Open that exact URL in a browser; a localhost URL loads but cannot connect.`;
+export function openingCanvas(host: Host): string {
+  const primary = host === "codex"
+    ? "Open the MCP App from the sidebar, a chat tab, or open_screen."
+    : "Call open_screen to show the interactive MCP App.";
+  return `${primary} Omit screenId for the library. If the app cannot display or connect, use the returned 127.0.0.1 URL in a browser, or pass openBrowser: true to launch it. Use get_view with browser: true while working in that fallback.`;
+}
 
 const main = (host: Host) => `# Using Screens
 
