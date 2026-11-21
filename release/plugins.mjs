@@ -32,7 +32,7 @@ fs.mkdirSync(root, { recursive: true });
 fs.cpSync(source, stage, { recursive: true });
 const write = (rel, value) => { fs.mkdirSync(path.dirname(path.join(stage, rel)), { recursive: true }); fs.writeFileSync(path.join(stage, rel), JSON.stringify(value, null, 2) + "\n"); };
 write("mcp.json", { ...portable, mcpServers: { screens: { ...server, args: run("codex") } } });
-write(".mcp.json", { mcpServers: { screens: { command: server.command, args: run("claude") } } });
+write(".mcp.json", { mcpServers: { screens: { command: server.command, args: [...run("claude"), "--browser-fallback"] } } });
 write(".claude-plugin/plugin.json", { name: manifest.name, version: manifest.version, description: manifest.description, author: manifest.author });
 
 const dest = path.join(root, "screens");

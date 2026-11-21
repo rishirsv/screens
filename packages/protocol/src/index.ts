@@ -165,7 +165,7 @@ export type ClientMessage =
   | { readonly t: "readContext"; readonly reqId: string; readonly screenId: ScreenId; readonly lane?: string; readonly app?: boolean }
   /** The Screens open in canvases, most recently active first. Answer: { screenId, at, app }[]; app marks an MCP App view. */
   | { readonly t: "views"; readonly reqId: string }
-  | { readonly t: "viewCommand"; readonly reqId: string; readonly screenId: ScreenId; readonly command: ViewCommand }
+  | { readonly t: "viewCommand"; readonly app?: boolean; readonly reqId: string; readonly screenId: ScreenId; readonly command: ViewCommand }
   | { readonly t: "viewCommandAnswer"; readonly id: string; readonly outcome: ViewCommandOutcome }
   /** An agent's status or reservation. Answer: { placement: Rect | null }, the reserved slot. lane as in `op`. */
   | { readonly t: "presence"; readonly reqId: string; readonly screenId: ScreenId; readonly lane?: string; readonly patch: PresencePatch }

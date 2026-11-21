@@ -5,6 +5,7 @@ import { APP_URI, registerAppResource, registerAppTools } from "./app.ts";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import nodePath from "node:path";
+import { promisify } from "node:util";
 import { execFile } from "node:child_process";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -17,6 +18,10 @@ import { MONTAGE_SIZE, MONTAGE_SIZE_MAX, MONTAGE_SIZE_MIN, docRects, imageInfo, 
 /** Host-specific text comes from the plugin's --host argument, never from guessing the client. */
 const hostArg = process.argv.indexOf("--host");
 const host: Host = hostArg > 0 && (process.argv[hostArg + 1] === "claude" || process.argv[hostArg + 1] === "codex") ? process.argv[hostArg + 1] as Host : null;
+
+// The marketplace connection in Claude Code can render a card without forwarding its tool calls.
+const browserOnly = host === "claude" && process.argv.includes("--browser-fallback");
+const openTool = browserOnly ? "open_screen_in_browser" : "open_screen";
 
 const INSTRUCTIONS = `Screens is a local canvas of HTML objects and reference images that a person and you edit together.
 - You MUST call get_guide({ topic: "screens-instructions" }) once per session before other Screens tools, and again if a long conversation may have dropped it. It explains every tool.
@@ -259,8 +264,10 @@ const snapshotRequest = (tool: string, a: { opId?: string }) => [tool, crypto.cr
 const sidebarSvg = fs.readFileSync(new URL(bundle ? "./sidebar.svg" : "../../../plugins/screens/assets/screens-icon.svg", import.meta.url));
 const sidebarIcons = (["light", "dark"] as const).map(theme => ({ src: `data:image/svg+xml;base64,${sidebarSvg.toString("base64")}`, mimeType: "image/svg+xml", sizes: ["any"], theme }));
 const server = new McpServer({ name: "screens", version: bundle?.version ?? "0.0.0-dev", icons: sidebarIcons }, { instructions: INSTRUCTIONS });
-registerAppTools(server, host);
-registerAppResource(server);
+if (!browserOnly) {
+  registerAppTools(server, host);
+  registerAppResource(server);
+}
 const screenId = z.string().describe("Screen ID");
 const opId = z.string().optional().describe("Operation ID for safe retries");
 
@@ -297,22 +304,27 @@ server.registerTool("create_screen", {
 server.registerTool("get_guide", {
   description: `How to use Screens: every tool, in order of a typical session. Call with topic "screens-instructions" before using other Screens tools. Other topics: ${GUIDE_TOPICS.slice(1).join(", ")}.`,
   inputSchema: { topic: z.enum(GUIDE_TOPICS) },
-}, async ({ topic }) => text(guide(topic, host)!));
+}, async ({ topic }) => text(guide(topic, host, browserOnly)!));
 
-server.registerTool("open_screen", {
+server.registerTool(openTool, {
   title: process.env.SCREENS_OPENING_CONFIG ? "Opening Bench" : "Screens",
-  description: `Open the interactive Screens library or a specific Screen. ${openingCanvas(host)}`,
+  description: openingCanvas(host, browserOnly),
   inputSchema: {
     screenId: screenId.optional(),
     openBrowser: z.boolean().optional().describe("Launch the system browser when the embedded view is unavailable or a browser is requested"),
   },
-  _meta: { ui: { resourceUri: APP_URI }, "openai/ui": { entrypoints: [{ type: "global" }, { type: "thread" }] } },
+  ...(browserOnly ? {} : { _meta: { ui: { resourceUri: APP_URI }, "openai/ui": { entrypoints: [{ type: "global" }, { type: "thread" }] } } }),
 }, async ({ screenId, openBrowser }) => {
   const s = await service();
   if (screenId !== undefined) await s.read(screenId);
   const url = screenId === undefined ? reg!.canvasOrigin : `${reg!.canvasOrigin}/s/${screenId}`;
-  if (openBrowser) execFile(process.platform === "darwin" ? "open" : "xdg-open", [url]);
-  return text({ screenId: screenId ?? null, url, open: openingCanvas(host) });
+  if (openBrowser) {
+    const launcher = process.platform === "darwin" ? "open" : process.platform === "win32" ? "rundll32.exe" : "xdg-open";
+    const args = process.platform === "win32" ? ["url.dll,FileProtocolHandler", url] : [url];
+    try { await promisify(execFile)(launcher, args, { timeout: 5000 }); }
+    catch { return text({ screenId: screenId ?? null, url, open: "The browser launcher did not confirm opening Screens. Open the returned URL manually." }); }
+  }
+  return text({ screenId: screenId ?? null, url, open: openingCanvas(host, browserOnly) });
 });
 
 server.registerTool("get_screen", {
@@ -644,10 +656,16 @@ server.registerTool("set_status", {
   return text({ ok: true, ...(placement ? { x: placement.x, y: placement.y, width: placement.w, height: placement.h } : {}) });
 });
 
+function viewSurface(browser?: boolean) {
+  if ((browser || host) && !reg?.scopedViews) throw new Error("This running Screens service predates host-specific view controls. Stop the service with screens stop when current edits have saved, then retry.");
+  if (browser) return false;
+  return host ? true : undefined;
+}
+
 server.registerTool("get_view", { description: "What the person sees in the open canvas: selection, focused and interacting items, the visible world rect, the comment thread they have open, open comment threads in view, and the other agents on this Screen. Without screenId, the Screen most recently active in an open canvas; in the configured host’s Screens view. Use browser=true when working in the browser fallback. Reports when no canvas is open.", inputSchema: { screenId: screenId.optional(), browser: z.boolean().optional() } },
   async ({ screenId: given, browser }) => {
     const s = await service();
-    const app = browser ? false : host ? true : undefined;
+    const app = viewSurface(browser);
     const id = given ?? (await s.views()).find((v) => app === undefined || v.app === app)?.screenId;
     if (!id) return text({ open: false, view: null, screenId: null });
     const [ctx, doc] = await Promise.all([s.readContext(id, laneFor(id, [], false), app), s.read(id)]);
@@ -709,11 +727,11 @@ server.registerTool("delete_comment", {
 }, async (a) => mutate(a.screenId, a.commentId ? { type: "removeComment", threadId: a.threadId, commentId: a.commentId } : { type: "removeThread", threadId: a.threadId },
   a.opId, { threadId: a.threadId }, threadResult(a.screenId, a.threadId)));
 
-server.registerTool("show_items", { description: "Ask the open canvas to show items. Deferred while the person is dragging or typing; the result says applied, deferred or dropped.", inputSchema: { screenId, itemIds: z.array(z.string()).min(1) } },
-  async ({ screenId, itemIds }) => text({ result: await (await service()).viewCommand(screenId, { id: newId(), kind: "show", itemIds, issuedAt: Date.now() }) }));
+server.registerTool("show_items", { description: "Ask the open canvas to show items. Deferred while the person is dragging or typing; the result says applied, deferred or dropped.", inputSchema: { screenId, itemIds: z.array(z.string()).min(1), browser: z.boolean().optional() } },
+  async ({ screenId, itemIds, browser }) => text({ result: await (await service()).viewCommand(screenId, { id: newId(), kind: "show", itemIds, issuedAt: Date.now() }, viewSurface(browser)) }));
 
-server.registerTool("focus_item", { description: "Ask the open canvas to focus one item, or exit focus when itemId is omitted. Result: applied, deferred, dropped or no-view.", inputSchema: { screenId, itemId: z.string().optional() } },
-  async ({ screenId, itemId }) => text({ result: await (await service()).viewCommand(screenId, itemId ? { id: newId(), kind: "focus", itemId, issuedAt: Date.now() } : { id: newId(), kind: "exit-focus", issuedAt: Date.now() }) }));
+server.registerTool("focus_item", { description: "Ask the open canvas to focus one item, or exit focus when itemId is omitted. Result: applied, deferred, dropped or no-view.", inputSchema: { screenId, itemId: z.string().optional(), browser: z.boolean().optional() } },
+  async ({ screenId, itemId, browser }) => text({ result: await (await service()).viewCommand(screenId, itemId ? { id: newId(), kind: "focus", itemId, issuedAt: Date.now() } : { id: newId(), kind: "exit-focus", issuedAt: Date.now() }, viewSurface(browser)) }));
 
 // ── Library: folders, archive and Media ──
 

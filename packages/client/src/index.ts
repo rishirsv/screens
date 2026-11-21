@@ -107,7 +107,7 @@ export interface Service {
   readContext(screenId: ScreenId, lane?: string, app?: boolean): Promise<{ view: (ViewContext & { sessionId: string }) | null; open: boolean; others: readonly OtherParticipant[] }>;
   /** The Screens open in canvases, most recently active first. */
   views(): Promise<readonly { screenId: ScreenId; at: number; app: boolean }[]>;
-  viewCommand(screenId: ScreenId, command: ViewCommand): Promise<ViewCommandOutcome | "no-view">;
+  viewCommand(screenId: ScreenId, command: ViewCommand, app?: boolean): Promise<ViewCommandOutcome | "no-view">;
   /** An agent's status and reservation (set_status). lane: which agent on this connection, when several share it. */
   presence(screenId: ScreenId, patch: PresencePatch, lane?: string): Promise<{ placement: Rect | null }>;
   /** One part of an object being written: shown on canvases as a draft, never saved. itemId null: a new object. */
@@ -295,7 +295,7 @@ export function connectService(transport: ServiceTransport): Service {
     poster: (screenId, itemId, pieces, contentVersion) => request<PosterAnswer>({ t: "poster", screenId, itemId, ...(pieces?.length ? { pieces } : {}), ...(contentVersion ? { contentVersion } : {}) }),
     readContext: (screenId, lane, app) => request({ t: "readContext", screenId, ...(lane ? { lane } : {}), ...(app !== undefined ? { app } : {}) }),
     views: () => request({ t: "views" }),
-    viewCommand: (screenId, command) => request({ t: "viewCommand", screenId, command }),
+    viewCommand: (screenId, command, app) => request({ t: "viewCommand", screenId, command, app }),
     presence: (screenId, patch, lane) => request({ t: "presence", screenId, patch, ...(lane ? { lane } : {}) }),
     draft: (screenId, itemId, text, lane, generation) => request({ t: "draft", screenId, itemId, text, ...(lane ? { lane } : {}), ...(generation ? { generation } : {}) }),
     status: (opId, identity) => request<Outcome>({ t: "status", opId, ...(identity ? { identity } : {}) }),

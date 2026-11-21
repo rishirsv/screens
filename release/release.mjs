@@ -3,6 +3,7 @@
 // Usage: node release/release.mjs [--version X.Y.Z] [--publish] [--install] [--marketplace DIR]
 //   Without --publish the plugin runs the packed tarball, so a release can be tried before it reaches npm.
 
+import { installDesktopWidget } from "./claude-desktop.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -56,4 +57,6 @@ const codexMarkets = JSON.parse(run("codex", ["plugin", "marketplace", "list", "
 if (!codexMarkets.some((m) => m.name === "screens-local")) run("codex", ["plugin", "marketplace", "add", staged.marketplace], { stdio: "inherit" });
 const codex = JSON.parse(run("codex", ["plugin", "add", "screens@screens-local", "--json"]));
 if (codex.version !== current) throw Error(`Codex installed Screens ${codex.version ?? "missing"}, expected ${current}`);
+installDesktopWidget(market);
+console.log("Restart Claude Desktop to load the Screens widget server.");
 console.log(`installed Screens ${current} in Claude and Codex`);

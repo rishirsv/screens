@@ -594,7 +594,9 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
         return presence.draft(c, m.screenId, m.lane, m.itemId ?? null, m.text, m.generation);
       }
       case "viewCommand": {
-        const targets = [...conns].filter((x) => x.role === "canvas" && x.screens.has(m.screenId));
+        const selected = m.app === undefined ? undefined : latestView(m.screenId, m.app, c.host);
+        const targets = [...conns].filter((x) => x.role === "canvas" && x.screens.has(m.screenId) &&
+          (m.app === undefined || x.sessionId === selected?.sessionId));
         if (targets.length === 0) return "no-view";
         const answer = new Promise<ViewCommandOutcome>((resolve) => {
           pendingCommands.set(m.command.id, resolve);
@@ -825,7 +827,7 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
   canvasOrigin = `http://127.0.0.1:${canvasPort}`; frameOrigin = `http://127.0.0.1:${framePort}`;
   try { fs.writeFileSync(path.join(home, "ports.json"), JSON.stringify({ canvas: canvasPort, frame: framePort })); } catch { /* only a preference */ }
 
-  const reg: Registry = { pid: process.pid, instanceId, protocol: PROTOCOL_VERSION, token, canvasOrigin, frameOrigin, startedAt: new Date().toISOString(), dev: !!dev };
+  const reg: Registry = { scopedViews: true, pid: process.pid, instanceId, protocol: PROTOCOL_VERSION, token, canvasOrigin, frameOrigin, startedAt: new Date().toISOString(), dev: !!dev };
   const tmp = `${registryPath()}.${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(reg, null, 2), { mode: 0o600 }); fs.renameSync(tmp, registryPath());
   console.log(`screens ready ${canvasOrigin} frames ${frameOrigin} (recovered: ${recovered.staging} staging, ${recovered.content} content files)`);

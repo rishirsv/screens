@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { PROTOCOL_VERSION } from "@screens/protocol";
 import { bundle } from "./bundle.ts";
 
-export interface Registry { pid: number; instanceId: string; protocol: number; token: string; canvasOrigin: string; frameOrigin: string; startedAt: string; dev?: boolean }
+export interface Registry { scopedViews?: boolean; pid: number; instanceId: string; protocol: number; token: string; canvasOrigin: string; frameOrigin: string; startedAt: string; dev?: boolean }
 
 export const defaultHome = (): string => path.join(os.homedir(), ".screens");
 export const screensHome = (): string => (process.env.SCREENS_HOME ? path.resolve(process.env.SCREENS_HOME) : defaultHome());

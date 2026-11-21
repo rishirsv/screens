@@ -3,14 +3,15 @@
 export type Host = "claude" | "codex" | null;
 
 /** Where the person sees a Screen, per host. */
-export function openingCanvas(host: Host): string {
+export function openingCanvas(host: Host, browserOnly = false): string {
+  if (browserOnly) return "Use the Screens Desktop connector’s open_screen tool for the interactive canvas. Only when it is unavailable or the user wants a browser, use open_screen_in_browser. It returns the local URL for the named Screen or the library. Pass openBrowser: true to launch it. Use browser: true on get_view, focus_item and show_items for this fallback.";
   const primary = host === "codex"
     ? "Open the MCP App from the sidebar, a chat tab, or open_screen."
     : "Call open_screen to show the interactive MCP App.";
-  return `${primary} Omit screenId for the library. If the app cannot display or connect, use the returned 127.0.0.1 URL in a browser, or pass openBrowser: true to launch it. Use get_view with browser: true while working in that fallback.`;
+  return `${primary} Omit screenId for the library. If the app cannot display or connect, use the returned 127.0.0.1 URL in a browser, or pass openBrowser: true to launch it. Use browser: true on get_view, focus_item and show_items while working in that fallback.`;
 }
 
-const main = (host: Host) => `# Using Screens
+const main = (host: Host, browserOnly: boolean) => `# Using Screens
 
 Screens is a local canvas the person and you edit together. A Screen holds items: objects (self-contained HTML pages), images and strokes, plus comment threads. Every change goes through these tools and is saved by the local Screens service; the person sees it live.
 
@@ -19,7 +20,7 @@ For how to make a design look excellent, use the Screens design skills when you 
 ## Start
 
 1. Find the Screen. If the person named or is looking at one, use it: get_view on a Screen says what they see. Otherwise list_screens (filter by title with query) or create_screen. A Screen's layout is fixed at creation: canvas (free placement), slides (a Presentation of 1920x1080 pages) or a4 (a Document of 794x1123 pages).
-2. Show it with open_screen. ${openingCanvas(host)}
+2. ${openingCanvas(host, browserOnly)}
 3. Read before you change. get_screen lists items with geometry and revisions. get_view adds the person's selection, focused item, open comment thread and the other agents on the Screen. It is a hint about what they see, not permission to change their work.
 4. Say what you are doing. set_status shows the person your current task and where; set it when you start or change focus, and pass new before writing a new object.
 
@@ -101,6 +102,6 @@ const topics: Record<string, string> = {
 
 export const GUIDE_TOPICS = ["screens-instructions", ...Object.keys(topics)] as const;
 
-export function guide(topic: string, host: Host): string | null {
-  return topic === "screens-instructions" ? main(host) : topics[topic] ?? null;
+export function guide(topic: string, host: Host, browserOnly = false): string | null {
+  return topic === "screens-instructions" ? main(host, browserOnly) : topics[topic] ?? null;
 }

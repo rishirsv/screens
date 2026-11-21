@@ -155,6 +155,8 @@ try{let result;if(m.method==='ui/initialize')result={protocolVersion:'2026-01-26
         const result = await peer.callTool({ name: "get_view", arguments: args });
         if ((result.structuredContent as { open?: boolean })?.open !== false) throw new Error("get_view followed the other host's embedded canvas");
       }
+      const focus = await peer.callTool({ name: "focus_item", arguments: { screenId } });
+      if ((focus.structuredContent as { result?: string })?.result !== "no-view") throw new Error("focus_item targeted another host's canvas");
     } finally { await peer.close(); }
     await tab.close();
     // A draft streamed in parts closer together than half a second still shows progress before it commits.

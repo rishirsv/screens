@@ -16,7 +16,7 @@ Requires Node.js 24 or later and Chrome or Chromium for previews. Start with Cod
 git clone https://github.com/rishirsv/screens.git
 cd screens
 npm ci
-npm run release:plugins
+npm run release
 ```
 
 Install in your host.
@@ -35,13 +35,14 @@ Open Screens from the sidebar or as a chat tab.
 ```sh
 claude plugin marketplace add "$HOME/.local/share/screens/marketplace"
 claude plugin install screens@screens-local
+node release/claude-desktop.mjs
 ```
 
-Ask Claude Code to open Screens. In the desktop Code tab, `open_screen` opens the interactive canvas. It opens the library by default or a specific Screen when given its ID.
+Restart Claude Desktop after registration, then ask Claude Code to open Screens. In the desktop Code tab, `open_screen` opens the interactive canvas. It opens the library by default or a specific Screen when given its ID.
 
-Some Claude Code builds can display the canvas from a plugin but cannot send its actions back to the service. For local MCP App support through Claude Desktop, copy the staged plugin’s `screens` server entry from `~/.local/share/screens/marketplace/screens/.mcp.json` into the `mcpServers` section of `claude_desktop_config.json` (Settings → Developer → Edit Config). Restart Claude Desktop and use the Desktop-registered server in the Code tab.
+Claude Desktop registers the interactive `open_screen` tool. Its connection forwards actions from the widget to the local service. The Claude Code marketplace plugin supplies agent tools and `open_screen_in_browser` for terminal sessions or browser fallback. The local release installer (`--install`) also updates the Desktop registration.
 
-In either host, if the embedded view is unavailable or cannot connect, open the local URL returned by `open_screen`. This also works from a terminal. Pass `openBrowser: true` to launch the system browser explicitly.
+In either host, use the returned local URL when a browser is needed. Pass `openBrowser: true` to launch the system browser explicitly.
 
 Try this prompt:
 

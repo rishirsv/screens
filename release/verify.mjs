@@ -1,3 +1,4 @@
+import { installDesktopWidget } from "./claude-desktop.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -23,10 +24,10 @@ const cli = (...args) => run(process.execPath, [bin, ...args]).trim();
 const clients = new Set();
 const browser = process.argv.includes("--browser");
 
-async function connect(host) {
+async function connect(host, ...flags) {
   const client = new Client({ name: "screens-release-check", version: "1.0.0" });
   clients.add(client);
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [bin, "mcp", "--host", host], cwd: temp, env, stderr: "pipe" }));
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [bin, "mcp", "--host", host, ...flags], cwd: temp, env, stderr: "pipe" }));
   const tools = await client.listTools();
   assert(tools.tools.some((t) => t.name === "create_screen"), `${host}: missing tools`);
   const guide = await client.callTool({ name: "get_guide", arguments: { topic: "screens-instructions" } });
@@ -108,6 +109,11 @@ try {
   const after = await tool(claude, "get_screen", { screenId: created.id });
   assert.deepEqual(after, before, "Screen did not survive the service restart");
 
+  const fallback = await connect("claude", "--browser-fallback");
+  assert(!fallback.tools.some((t) => t.name === "open_screen" || t.name === "_screens_call"));
+  assert(!fallback.tools.find((t) => t.name === "open_screen_in_browser")?._meta?.ui);
+  assert.equal((await tool(fallback.client, "open_screen_in_browser", { screenId: created.id })).url, opened.url);
+
   for (const local of [false, true]) {
     const market = path.join(temp, local ? "local-market" : "registry-market");
     run(process.execPath, [path.join(repo, "release/plugins.mjs"), "--marketplace", market, ...(local ? ["--package", path.join(temp, packed.filename)] : [])]);
@@ -116,9 +122,19 @@ try {
     for (const [file, host] of [["mcp.json", "codex"], [".mcp.json", "claude"]]) {
       const server = read(path.join(plugin, file)).mcpServers.screens;
       assert.equal(server.command, "npx");
-      assert.deepEqual(server.args.slice(-3), ["mcp", "--host", host]);
+      const flags = host === "claude" ? ["--browser-fallback"] : [];
+      assert.deepEqual(server.args.slice(-3 - flags.length), ["mcp", "--host", host, ...flags]);
       assert(server.args.includes(local ? path.join(temp, packed.filename) : `${expected.name}@${expected.version}`));
     }
+    const config = path.join(market, "desktop-test.json");
+    fs.writeFileSync(config, JSON.stringify({ mcpServers: { other: { command: "other" } }, preferences: { keep: true } }));
+    installDesktopWidget(market, config);
+    const desktop = read(config);
+    assert.deepEqual(desktop.mcpServers.screens.args, read(path.join(plugin, ".mcp.json")).mcpServers.screens.args.slice(0, -1));
+    assert.equal(desktop.mcpServers.other.command, "other");
+    assert.deepEqual(desktop.preferences, { keep: true });
+    installDesktopWidget(market, config);
+    assert.deepEqual(read(config), desktop);
     assert(fs.existsSync(path.join(plugin, "assets/screens-icon.svg")));
     assert.equal(read(path.join(market, ".claude-plugin/marketplace.json")).plugins[0].version, expected.version);
     assert.equal(read(path.join(market, ".agents/plugins/marketplace.json")).plugins[0].name, "screens");
