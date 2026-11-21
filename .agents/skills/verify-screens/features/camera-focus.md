@@ -5,6 +5,7 @@ A person pans with Hand, Shift-drag, the middle button or the wheel. They zoom w
 ## Sub-features
 
 - `cam-pan`: Hand, Shift-drag and the wheel pan by the screen delta, with no revision.
+- `shift-pan-page`: Shift-drag pans at once after a click inside a selected live page, which takes keyboard focus. Releasing Shift gives the page the pointer again.
 - `minimap`: the map is off by default. Turn it on to see the canvas and navigate by click or drag. The choice survives a reload.
 - `cam-zoom`: zoom out and in around the centre; Cmd+0 goes to 100%; Fit all frames everything and turns auto-fit back on.
 - `zoom-preview`: background boards use a preview at their current size during zoom. The selected board stays live.
@@ -46,6 +47,17 @@ drag @A.title by 40,0 --shift
 expect view.camera.x=+-20 doc.@A.x=0 view.tool=move view.shiftPanning=false doc.rev=+0
 drag @A.title by 40,0
 expect doc.@A.x=40 doc.rev=+1 storage.rev=doc.rev
+```
+
+```screens id=shift-pan-page
+add_object title=A files=fixture:plain x=0 y=0 width=800 height=600 as=@A
+zoom 100
+click @A
+inside @A click body
+expect view.interacting=@A frames.@A.input=page
+mark
+drag @A by 60,0 --shift
+expect view.camera.x=+60 doc.@A.x=0 doc.rev=+0 view.shiftPanning=false frames.@A.input=page
 ```
 
 ```screens id=cam-zoom

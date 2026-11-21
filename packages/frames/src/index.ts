@@ -44,6 +44,7 @@ else if(d.kind==="text")parent.postMessage({kind:"text",gen,pid:pid(d.pid),text:
 else if(d.kind==="move")parent.postMessage({kind:"move",gen,items:Array.isArray(d.items)?d.items.slice(0,50).map((m)=>m&&typeof m==="object"?{pid:pid(m.pid),rel:m.rel===true,x:opt(m.x),y:opt(m.y),w:opt(m.w),h:opt(m.h)}:null).filter((m)=>m&&m.pid):[]},to);
 else if(d.kind==="zoom")parent.postMessage({kind:"zoom",gen,x:num(d.x),y:num(d.y),dy:num(d.dy),pinch:d.pinch===true},to);
 else if(d.kind==="pan")parent.postMessage({kind:"pan",gen,dx:num(d.dx),dy:num(d.dy)},to);
+else if(d.kind==="shift")parent.postMessage({kind:"shift",gen,down:d.down===true},to);
 else if(d.kind==="escape")parent.postMessage({kind:"escape",gen},to);});})();</script></body></html>`;
 }
 

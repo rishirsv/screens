@@ -454,6 +454,7 @@ export class CanvasRuntime {
     else if (d.kind === "zoom") this.dispatch({ type: "bridge", itemId: host.itemId, msg: { kind: "zoom", x: Number(d.x), y: Number(d.y), dy: Number(d.dy), pinch: d.pinch === true } });
     else if (d.kind === "pan") this.dispatch({ type: "bridge", itemId: host.itemId, msg: { kind: "pan", dx: Number(d.dx) || 0, dy: Number(d.dy) || 0 } });
     else if (d.kind === "escape") this.dispatch({ type: "bridge", itemId: host.itemId, msg: { kind: "escape" } });
+    else if (d.kind === "shift") this.dispatch({ type: "bridge", itemId: host.itemId, msg: { kind: "shift", down: d.down === true } });
   };
 }
 
