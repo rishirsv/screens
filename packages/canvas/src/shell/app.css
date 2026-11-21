@@ -17,6 +17,39 @@ body { background: var(--window); color: var(--text); font: var(--text-md) / var
 .frame-surface > iframe { transition: opacity var(--duration-frame) var(--ease-standard); }
 .frame-title .screens-mini-spinner { width: 10px; height: 10px; border-width: 1.5px; flex: none; }
 .frame.has-actions > .frame-title { width: max(0px, calc(100% * var(--zoom, 1) - 30px)); }
+/* In a dense overview, keep captions inside their own frames instead of the gap between rows. */
+.stage[data-layout="canvas"] .frame > .frame-title {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+.stage[data-layout="canvas"] .frame:is(.selected, .interacting) > .frame-title { color: var(--accent); }
+.world[data-compact-frame-titles] .frame > .frame-title {
+  top: 0;
+  bottom: auto;
+  z-index: 1;
+  width: max-content;
+  max-width: max(0px, calc(100% * var(--zoom, 1) - 4px));
+  height: 20px;
+  margin: calc(2px * var(--inv, 1));
+  padding: 0;
+  transform-origin: 0 0;
+  align-items: flex-start;
+  font-size: var(--text-xs);
+}
+.world[data-compact-frame-titles] .frame-title > .kind { display: none; }
+.world[data-compact-frame-titles] .frame-title > span:first-of-type:not(.spinner) {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 2px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.world[data-compact-frame-titles] .frame > .frame-actions {
+  bottom: 0;
+  padding: 0 4px 4px 0;
+}
+
 .screens-title-input { font: inherit; color: var(--text); border: 0; outline: 0; background: var(--surface); border-radius: var(--radius-xs); padding: 0 4px; box-shadow: 0 0 0 1.5px var(--accent); min-width: 120px; }
 
 /* No frame steals a gesture or a camera move; the focused frame keeps its input. */

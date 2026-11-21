@@ -732,9 +732,35 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
     "/ui/components.css": static_(asset("components.css"), "text/css"),
     "/app.css": static_(asset("app.css"), "text/css"),
   };
+  const liveStyles = opts.dev && !bundle;
+  const styleVersion = () => (["tokens.css", "components.css", "app.css"] as const)
+    .map((name) => fs.statSync(asset(name), { throwIfNoEntry: false })?.mtimeMs ?? 0).join("-");
+  const liveStyleScript = liveStyles ? `<script type="module">
+const styles = [...document.querySelectorAll('link[rel="stylesheet"]')];
+let version = ${JSON.stringify(styleVersion())};
+async function refreshStyles() {
+  try {
+    const response = await fetch("/__screens-dev/styles", { cache: "no-store" });
+    if (!response.ok) return;
+    const next = await response.text();
+    if (next === version) return;
+    version = next;
+    for (const link of styles) {
+      const url = new URL(link.href);
+      url.searchParams.set("v", version);
+      link.href = url.href;
+    }
+  } catch {
+    // The service may be restarting. Try again on the next poll.
+  } finally {
+    setTimeout(refreshStyles, 500);
+  }
+}
+setTimeout(refreshStyles, 500);
+</script>` : "";
   const appHtml = () => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Screens</title><link rel="stylesheet" href="/ui/tokens.css"><link rel="stylesheet" href="/ui/components.css"><link rel="stylesheet" href="/app.css">
-<script>window.__SCREENS__=${JSON.stringify({ token, instanceId })};${openingConfigScript(openingConfig, appJs, { resourceUri: "/", serviceInstanceId: instanceId })}</script></head><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>`;
+<script>window.__SCREENS__=${JSON.stringify({ token, instanceId })};${openingConfigScript(openingConfig, appJs, { resourceUri: "/", serviceInstanceId: instanceId })}</script>${liveStyleScript}</head><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>`;
 
   const canvasServer = http.createServer((req, res) => {
     lastActivity = Date.now();
@@ -742,6 +768,12 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
     const url = new URL(req.url ?? "/", canvasOrigin);
     if (url.pathname === "/health") { res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ instanceId, protocol: PROTOCOL_VERSION })); return; }
     if (url.pathname === "/favicon.ico") { res.statusCode = 204; res.end(); return; }
+    if (liveStyles && url.pathname === "/__screens-dev/styles") {
+      res.setHeader("content-type", "text/plain");
+      res.setHeader("cache-control", "no-store");
+      res.end(styleVersion());
+      return;
+    }
     if (url.pathname === "/app.js") { res.setHeader("content-type", "text/javascript"); res.setHeader("cache-control", "no-store"); res.end(appJs); return; }
     const route = routes[url.pathname]; if (route) { route(res); return; }
     const content = url.pathname.match(/^\/content\/([0-9a-f]{64})$/);

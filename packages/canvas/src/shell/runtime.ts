@@ -290,6 +290,7 @@ export class CanvasRuntime {
       this.world.style.setProperty("--page-label-gap", `${room}px`);
       this.world.toggleAttribute("data-tight-page-labels", scroll && room < 24);
       this.world.toggleAttribute("data-hidden-page-labels", scroll && room < 10);
+      this.world.toggleAttribute("data-compact-frame-titles", layout === "canvas" && z <= 0.45);
       this.world.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
       this.world.style.setProperty("--zoom", String(z));
       this.world.style.setProperty("--inv", String(1 / z));
