@@ -114,7 +114,7 @@ export type CanvasInput =
   | { readonly type: "key-down"; readonly key: string; readonly code: string; readonly mod: boolean; readonly shift: boolean; readonly editable: boolean; readonly control: boolean }
   | { readonly type: "key-up"; readonly code: string }
   | { readonly type: "window-blur"; readonly activeFrameItem: ItemId | null }
-  | { readonly type: "bridge"; readonly itemId: ItemId; readonly msg: { readonly kind: "pointer"; readonly x: number; readonly y: number } | { readonly kind: "zoom"; readonly x: number; readonly y: number; readonly dy: number; readonly pinch: boolean } | { readonly kind: "pan"; readonly dx: number; readonly dy: number } | { readonly kind: "escape" } }
+  | { readonly type: "bridge"; readonly itemId: ItemId; readonly msg: { readonly kind: "pointer"; readonly x: number; readonly y: number } | { readonly kind: "zoom"; readonly x: number; readonly y: number; readonly dy: number; readonly pinch: boolean } | { readonly kind: "pan"; readonly dx: number; readonly dy: number } | { readonly kind: "escape" } | { readonly kind: "shift"; readonly down: boolean } }
   | { readonly type: "tick"; readonly now: number }
   | { readonly type: "camera-settled" }
   | { readonly type: "resize"; readonly viewport: Size }
@@ -298,6 +298,8 @@ function stepInner(s: ViewState, input: CanvasInput, doc: BaseDoc, env: Env, fx:
       if (!it) return s;
       const m = input.msg;
       if (m.kind === "pointer") return s.tool === "move" ? { ...s, interacting: input.itemId } : s;
+      // Shift pressed while a live page has keyboard focus. A focused page keeps Shift for selecting its own pieces.
+      if (m.kind === "shift") return presenting(s, doc) || (s.focus.mode === "focused" && s.focus.itemId === input.itemId) ? s : { ...s, shiftPanning: m.down };
       if (m.kind === "escape") {
         fx.push({ type: "blur-active" });
         const n = { ...s, interacting: null };
@@ -1122,8 +1124,8 @@ export interface FramePresentation {
   readonly hiddenByFocus: boolean; readonly input: "shield" | "page"; readonly showActions: boolean;
 }
 /**
- * The page takes pointer input only when it is a ready live snapshot and it is interacting, or the Move tool is
- * active without Shift and it is the sole selection or the focused item. Everything else gets the shield.
+ * The page takes pointer input only when it is a ready live snapshot, Shift is not held, and it is interacting or the
+ * Move tool is active and it is the sole selection or the focused item. Everything else gets the shield.
  */
 export function presentFrame(item: { readonly id: ItemId; readonly kind: string; readonly width: number; readonly removing: boolean }, s: ViewState, ready: boolean): FramePresentation {
   const ids = selectedIds(s);
@@ -1132,7 +1134,7 @@ export function presentFrame(item: { readonly id: ItemId; readonly kind: string;
   const focused = focusedId === item.id;
   // Only the scroll view (every canvas is in it) lets a page take input: in the grid a press reorders or opens, and Present steps.
   const page = item.kind === "html-snapshot" && ready && !item.removing && s.gesture === null && s.pages.view === "scroll" &&
-    (s.interacting === item.id || (s.tool === "move" && !s.shiftPanning && ((selected && ids.length === 1) || focused)));
+    !s.shiftPanning && (s.interacting === item.id || (s.tool === "move" && ((selected && ids.length === 1) || focused)));
   return {
     selected: selected && ids.length === 1, multiSelected: selected && ids.length > 1, interacting: s.interacting === item.id, focused,
     hiddenByFocus: focusedId !== null && !focused, input: page ? "page" : "shield",

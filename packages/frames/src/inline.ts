@@ -172,6 +172,8 @@ const k=e.deltaMode===1?16:e.deltaMode===2?innerHeight:1,dx=e.deltaX*k,dy=e.delt
 addEventListener("keydown",(e)=>{if(ed){e.stopPropagation();if(e.key==="Escape"){e.preventDefault();finish(false)}else if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();finish(true)}return}
 // A form control or the page's own editable text keeps its keys: arrows move its caret and undo is its own.
 const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))){if(e.key==="Escape")p({kind:"escape"});return}
+// Shift held over the canvas pans it. The canvas cannot see keys pressed in here, so the page reports Shift.
+if(e.key==="Shift"&&!e.repeat){p({kind:"shift",down:true});return}
 // Arrow keys nudge the selection, ten pixels with Shift. A run of presses is reported once it pauses, as one move.
 const dir={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
 if(dir&&sel.length&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();e.stopPropagation();const k=e.shiftKey?10:1;
@@ -179,4 +181,5 @@ if(!nudged)nudged={list:starts(),x:0,y:0};nudged.x+=dir[0]*k;nudged.y+=dir[1]*k;
 clearTimeout(nudgeTimer);nudgeTimer=setTimeout(()=>{const n=nudged;nudged=null;if(n&&n.list.length)report(n.list)},350);return}
 // The person's undo and redo belong to the canvas, which cannot see keys pressed in here.
 if((e.metaKey||e.ctrlKey)&&!e.altKey&&e.key.toLowerCase()==="z"){e.preventDefault();p({kind:"history",redo:e.shiftKey});return}
-if(e.key==="Escape")p({kind:"escape"})},true);})();`;
+if(e.key==="Escape")p({kind:"escape"})},true);
+addEventListener("keyup",(e)=>{if(e.key==="Shift")p({kind:"shift",down:false})},true);})();`;
