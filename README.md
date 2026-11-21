@@ -44,7 +44,7 @@ Claude Desktop registers the interactive `open_screen` tool. Its connection forw
 
 The Code tab can show a widget from a server that Claude Code starts, but it does not deliver the widget's actions to that server. In that case the widget shows the local URL and an Open in browser button.
 
-In either host, use the returned local URL when a browser is needed. Pass `openBrowser: true` to launch the system browser explicitly.
+In Claude Code, use the returned local URL when a browser is needed. Pass `openBrowser: true` to launch the system browser explicitly. In Codex, the agent works in the Screens view that you open from the sidebar or a chat tab.
 
 Try this prompt:
 

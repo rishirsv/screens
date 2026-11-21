@@ -306,14 +306,28 @@ server.registerTool("get_guide", {
   inputSchema: { topic: z.enum(GUIDE_TOPICS) },
 }, async ({ topic }) => text(guide(topic, host, browserOnly)!));
 
-server.registerTool(openTool, {
+const appMeta = { _meta: { ui: { resourceUri: APP_URI }, "openai/ui": { entrypoints: [{ type: "global" }, { type: "thread" }] } } };
+
+if (host === "codex") {
+  // Codex shows the view in its sidebar or a thread tab. The agent works on the Screen that view has open, so this
+  // tool returns no browser URL and offers no browser launch.
+  server.registerTool("open_screen", {
+    title: process.env.SCREENS_OPENING_CONFIG ? "Opening Bench" : "Screens",
+    description: `Open the Screens view, on a Screen when you give screenId, or on the library. ${openingCanvas(host)}`,
+    inputSchema: { screenId: screenId.optional() },
+    ...appMeta,
+  }, async ({ screenId }) => {
+    if (screenId !== undefined) await (await service()).read(screenId);
+    return text({ screenId: screenId ?? null, open: openingCanvas(host) });
+  });
+} else server.registerTool(openTool, {
   title: process.env.SCREENS_OPENING_CONFIG ? "Opening Bench" : "Screens",
   description: openingCanvas(host, browserOnly),
   inputSchema: {
     screenId: screenId.optional(),
     openBrowser: z.boolean().optional().describe("Launch the system browser when the embedded view is unavailable or a browser is requested"),
   },
-  ...(browserOnly ? {} : { _meta: { ui: { resourceUri: APP_URI }, "openai/ui": { entrypoints: [{ type: "global" }, { type: "thread" }] } } }),
+  ...(browserOnly ? {} : appMeta),
 }, async ({ screenId, openBrowser }) => {
   const s = await service();
   if (screenId !== undefined) await s.read(screenId);

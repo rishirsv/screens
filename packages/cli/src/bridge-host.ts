@@ -33,10 +33,15 @@ export async function verifyBridge(browser: Browser, home: string, screenId: str
     if (!uri || !Array.isArray(entries) || !["global", "thread"].every((type) => entries.some((entry) => entry.type === type))) throw new Error("open_screen must expose global and thread MCP App entrypoints");
     const empty = await tool("open_screen", {});
     if ((empty.structuredContent as { screenId?: unknown } | undefined)?.screenId !== null) throw new Error("open_screen with empty arguments must open the library");
+    // Codex agents work in the sidebar or thread-tab view, so its open_screen never points them at a browser.
+    if (adapterHost === "codex" && ((empty.structuredContent as Record<string, unknown> | undefined)?.url !== undefined || "openBrowser" in ((opener as { inputSchema?: { properties?: object } }).inputSchema?.properties ?? {})))
+      throw new Error("Codex open_screen must not offer a browser URL or launch");
     const resource = (await adapter.readResource({ uri })).contents[0] as { text?: string; mimeType?: string; _meta?: Record<string, any> };
     if (resource?.mimeType !== "text/html;profile=mcp-app" || !resource.text || !resource._meta?.ui?.csp) throw new Error("the canvas resource is not an MCP App page with a CSP");
     const app = resource.text;
-    const opened = (await tool("open_screen", { screenId })).structuredContent as { url: string };
+    await tool("open_screen", { screenId });
+    // Codex's open_screen returns no browser URL: the browser-tab checks below use the service's canvas origin.
+    const opened = { url: `${origins[0]}/s/${screenId}` };
     await page.exposeBinding("__appTool", async (_source, name: string, args: Record<string, unknown>) => {
       if (name === "_screens_call" && args.kind === "chunk") uploadChunks++;
       if (!["_screens_call", "_screens_events", "_screens_content"].includes(name)) throw new Error("unexpected app tool");
@@ -130,7 +135,7 @@ try{let result;if(m.method==='ui/initialize')result={protocolVersion:'2026-01-26
     }, image.id, { timeout: 10000 });
     // A browser tab on another Screen of this library does not redirect the embedded view lookup.
     const other = (await tool("create_screen", { title: "Browser tab" })).structuredContent as { id: string };
-    const fallback = (await tool("open_screen", { screenId: other.id })).structuredContent as { url: string };
+    const fallback = { url: `${origins[0]}/s/${other.id}` };
     const tab = await context.newPage();
     await tab.goto(fallback.url);
     for (let i = 0; i < 100 && !(await service.views()).some((v) => v.screenId === other.id && !v.app); i++) await new Promise((r) => setTimeout(r, 100));
