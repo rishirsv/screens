@@ -12,7 +12,9 @@ import { round2 } from "./stroke.ts";
 import { isUnsaved, type BaseDoc, type DisplayItem, type DisplayThread } from "./display.ts";
 import { gridColumns, PRESENT_KEYS, SCROLL, fitExact, fitTop, gridRect, policyOf, scrollRect, shownDocOf, slotAmong, type PagesState, type PagesView } from "./pages.ts";
 
-export const DRAG_THRESHOLD_PX = 3, PAN_MOVED_PX = 3, TRANSIENT_INTERVAL_MS = 33, PIN_DRAG_PX = 4;
+/** A press on a frame moves it only past DRAG_THRESHOLD_PX on screen, so a click that wobbles still only selects.
+ *  A resize handle is pressed on purpose, so it starts sooner, for small resizes. */
+export const DRAG_THRESHOLD_PX = 5, RESIZE_THRESHOLD_PX = 3, PAN_MOVED_PX = 3, TRANSIENT_INTERVAL_MS = 33, PIN_DRAG_PX = 4;
 export const STROKE_DRAW_PX = 4, STROKE_SPACING_PX = 0.75, STROKE_MAX_POINTS = 3000;
 export const VIEW_COMMAND_TTL_MS = 30_000;
 
@@ -50,7 +52,7 @@ export type Gesture =
       /** Grid view of a Presentation or Document: the drag reorders. slot is where the pages would go (reorderItems' index). */
       readonly reorder: boolean; readonly slot: number | null }
   /** starts: each selected item's rect at press; box: their bounds, which the handle resizes, scaling every item with it.
-   *  preview holds every item's full rect once past DRAG_THRESHOLD_PX. */
+   *  preview holds every item's full rect once past RESIZE_THRESHOLD_PX. */
   | { readonly kind: "item-resize"; readonly pointerId: number; readonly gestureId: string; readonly origin: Point; readonly starts: ReadonlyMap<ItemId, Rect>;
       readonly kinds: readonly string[]; readonly handle: Handle; readonly box: Rect; readonly limits: SizeLimits; readonly targets: readonly Rect[]; readonly preview: ReadonlyMap<ItemId, Placement> | null;
       readonly guides: readonly Guide[]; readonly lastBroadcastAt: number; readonly unsent: boolean }
@@ -563,7 +565,7 @@ function gestureMove(s: ViewState, g: Gesture, i: Extract<CanvasInput, { type: "
       return { ...s, interacting: null, gesture: broadcast({ ...g, dragging: true, preview, guides }, env.now(), fx) };
     }
     case "item-resize": {
-      if (!g.preview && Math.hypot(c.x - g.origin.x, c.y - g.origin.y) < DRAG_THRESHOLD_PX) return s;
+      if (!g.preview && Math.hypot(c.x - g.origin.x, c.y - g.origin.y) < RESIZE_THRESHOLD_PX) return s;
       const delta = { x: (c.x - g.origin.x) / s.camera.z, y: (c.y - g.origin.y) / s.camera.z };
       const r = resizeRect(g.box, g.handle, delta, keepsAspect(g.kinds, g.handle, i.shift), i.mod ? [] : g.targets, SNAP_SCREEN_PX / s.camera.z, g.limits);
       const preview = new Map<ItemId, Placement>();
