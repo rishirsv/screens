@@ -15,6 +15,7 @@
   "scripts": {
     "start": "node packages/service/src/cli.ts serve",
     "mcp": "node packages/mcp/src/main.ts",
+    "lint:spacing": "node packages/ui/check-spacing.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p packages/canvas/src/engine/tsconfig.json --noEmit",
     "screens-cli": "node packages/cli/src/main.ts",
     "test": "node --test packages/*/src/**/*.test.ts",

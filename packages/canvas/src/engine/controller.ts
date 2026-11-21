@@ -58,7 +58,7 @@ export type Gesture =
   | { readonly kind: "stroke"; readonly pointerId: number; readonly origin: Point; readonly anchorOrigin: Point; readonly draft: StrokeDraft; readonly drawing: boolean; readonly frameRequested: boolean }
   /** start: the pin tip in world units at press. preview: start + pointer delta / zoom, once past PIN_DRAG_PX. */
   | { readonly kind: "pin-drag"; readonly pointerId: number; readonly threadId: ThreadId; readonly origin: Point; readonly start: Point; readonly movable: boolean; readonly preview: Point | null }
-  /** Comment mode: a click places a pin; a drag past PIN_DRAG_PX circles a region. start and rect are world units. */
+  /** Comment mode: a click places a pin; a drag past PIN_DRAG_PX outlines a region. start and rect are world units. */
   | { readonly kind: "comment-area"; readonly pointerId: number; readonly origin: Point; readonly start: Point; readonly rect: Rect | null };
 
 export type Editing = { readonly kind: "item-title"; readonly itemId: ItemId } | { readonly kind: "screen-name" } | null;
@@ -465,7 +465,7 @@ function startCommentArea(s: ViewState, p: PointerSample, doc: BaseDoc, fx: Effe
   return { ...s, gesture: { kind: "comment-area", pointerId: p.pointerId, origin: p.client, start: w, rect: null } };
 }
 
-/** A circled region anchors to the topmost item under its centre, clipped to that item, else to the world. */
+/** A comment region anchors to the topmost item under its centre, clipped to that item, else to the world. */
 function draftFor(g: Extract<Gesture, { kind: "comment-area" }>, doc: BaseDoc, worldMarks: boolean): ThreadPosition | null {
   const live = doc.items.filter((it) => !it.removing);
   if (!g.rect) return worldMarks || topItemAt(live, g.start) ? positionUnder(g.start, doc) : null;

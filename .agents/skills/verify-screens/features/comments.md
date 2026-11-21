@@ -5,8 +5,8 @@ A comment thread is a pin with a conversation, pinned to a snapshot or to the ca
 ## Sub-features
 
 - `comment-world`: in Comment mode a click on empty canvas opens a draft. Enter sends, Shift+Enter adds a newline, Escape cancels and saves nothing, and blank text sends nothing. Pressing C again returns to Move.
-- `comment-area`: in Comment mode a drag of 4 px or more circles a region and pins the thread at its top-left, clipped to the snapshot under its centre. A straight-line drag places a plain pin. The area follows the snapshot, rides along when the pin moves and keeps its world size on another anchor, and `list_comments` reports it in item pixels.
-- `comment-area-pending`: a circled thread keeps its circle, at its world size, while a new thread or a pin move saves and after a save fails, and Retry saves it with the area.
+- `comment-area`: in Comment mode a drag of 4 px or more outlines a region with a rounded rectangle and pins the thread at its top-left, clipped to the snapshot under its centre. A straight-line drag places a plain pin. The area follows the snapshot, rides along when the pin moves and keeps its world size on another anchor, and `list_comments` reports it in item pixels.
+- `comment-area-pending`: a thread with an area keeps its outline, at its world size, while a new thread or a pin move saves and after a save fails, and Retry saves it with the area.
 - `comment-item`: a click on a snapshot pins the thread to it, at the point as fractions of its width and height.
 - `comment-anchor`: the pin follows the snapshot through a move, a proportional resize and a content update, on the canvas and in `list_comments`.
 - `comment-pin-drag`: dragging a pin 4 px or more moves it onto the canvas or onto a snapshot. A shorter press opens or closes it. Escape during a drag puts it back.
@@ -34,7 +34,7 @@ A comment thread is a pin with a conversation, pinned to a snapshot or to the ca
 
 ## How to get to it (user POV)
 
-- Press C or choose Comment, then click the canvas or a snapshot. The composer opens beside the pin; Enter sends, Shift+Enter adds a line and Escape cancels. Drag instead of clicking to circle an area. Saved annotations show numbered pins and compact text bubbles. Click one to open the conversation in place, with replies, editing, Resolve/Reopen and deletion.
+- Press C or choose Comment, then click the canvas or a snapshot. The composer opens beside the pin; Enter sends, Shift+Enter adds a line and Escape cancels. Drag instead of clicking to outline an area. Saved annotations show numbered pins and compact text bubbles. Click one to open the conversation in place, with replies, editing, Resolve/Reopen and deletion.
 - Comments opens the optional index on the right, initially hidden in every view. Selecting a row opens the anchored conversation. Its Resolved checkbox shows resolved threads. In Present the index follows the current slide and expands read-only conversations; pins stay hidden.
 
 ## Driving it with screens-cli
@@ -94,7 +94,7 @@ move_comment threadId=@T x=1500 y=40
 expect doc.@T.anchor=world doc.@T.area=[400,300]
 tool comment
 drag @A+100,400 to @A+300,400
-type A line circles nothing
+type A line marks no area
 key Enter as=@L
 expect doc.@L.anchor=@A doc.@L.area=null pending.size=0
 ```
@@ -104,7 +104,7 @@ add_object title=A files=fixture:plain x=0 y=0 width=400 height=300 as=@A
 tool comment
 fault fail-commit storage
 drag @A+100,60 to @A+300,210
-type Circled but failing
+type Area save fails
 key Enter
 expect doc.threads.size=0 pending.failed=1 dom.toast="Couldn't save" dom.areas=[[200,150]]
 toast retry as=@T

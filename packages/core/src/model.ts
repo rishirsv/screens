@@ -79,7 +79,7 @@ export interface Stroke {
 /** Same shape as a stroke anchor, but x/y mean something else (see Thread). */
 export type ThreadAnchor = StrokeAnchor;
 
-/** Width and height of a thread's circled region, in its anchor's units. */
+/** Width and height of a thread's comment region, in its anchor's units. */
 export interface ThreadArea { readonly w: number; readonly h: number }
 
 /** Text is trimmed, 1 to COMMENT_MAX characters, shown as text only. */
@@ -97,7 +97,7 @@ export interface Thread {
   readonly anchor: ThreadAnchor;
   readonly x: number;
   readonly y: number;
-  /** The circled region, if the person drew one: an ellipse whose bounding box starts at the pin (x, y) and runs w by h,
+  /** The comment region, if the person drew one: a region whose bounds start at the pin (x, y) and runs w by h,
    *  in the same units as x and y. */
   readonly area?: ThreadArea;
   readonly resolved: boolean;

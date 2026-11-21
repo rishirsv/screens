@@ -184,14 +184,14 @@ export function installTestHook(rt: CanvasRuntime): void {
           const shown = new Map([...(card?.querySelectorAll<HTMLElement>("[data-comment]") ?? [])].map((el) => [el.dataset.comment!, el]));
           const pins = new Map([...document.querySelectorAll<HTMLElement>(".screens-pin[data-thread]")].map((el) => [el.dataset.thread!, el]));
           const areas = new Map([...document.querySelectorAll<HTMLElement>("[data-area-thread]")].map((el) => [el.dataset.areaThread!, el]));
-          // Every circled region shown, in world units: the draft's, a gesture's and each thread's.
+          // Every comment region shown, in world units: the draft's, a gesture's and each thread's.
           d.areas = [...document.querySelectorAll<HTMLElement>(".screens-comment-area")].map((el) => [Math.round(parseFloat(el.style.width)), Math.round(parseFloat(el.style.height))]);
           for (const t of rt.doc().threads) {
             const pin = pins.get(t.id);
             const els = t.comments.map((c) => shown.get(c.id)).filter((el): el is HTMLElement => !!el);
             const area = areas.get(t.id);
             d[t.id] = { pin: pin ? "shown" : "hidden", active: pin?.classList.contains("active") ?? false, sync: t.sync,
-              // The circled region as drawn, in world units, rounded.
+              // The comment region as drawn, in world units, rounded.
               area: area ? [Math.round(parseFloat(area.style.width)), Math.round(parseFloat(area.style.height))] : null,
               at: pin ? [Math.round(parseFloat(pin.style.left)), Math.round(parseFloat(pin.style.top))] : null,
               texts: els.map((el) => el.querySelector(".comment-body")?.textContent ?? ""), failed: els.filter((el) => el.dataset.sync === "failed").length };

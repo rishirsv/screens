@@ -99,7 +99,7 @@ export function baseDocOf(s: BaseInput): BaseDoc {
         if (t) {
           t.sync = mark;
           if (!failed) {
-            // Same rule as core: the circled area keeps its world size on the new anchor.
+            // Same rule as core: the comment area keeps its world size on the new anchor.
             if (t.area) t.area = reanchorArea(t.area, t.anchor, op.anchor, (id) => { const it = doc.items[id]; return it && { w: it.width, h: it.height }; });
             t.anchor = op.anchor; t.x = op.x; t.y = op.y;
           }

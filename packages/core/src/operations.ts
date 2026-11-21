@@ -433,7 +433,7 @@ function apply(d: Draft, op: Operation, ctx: Context): void {
     }
     case "moveThread": {
       const cur = existingThread(d, op.threadId);
-      // A circled region keeps its world size when the pin moves onto another item or off one.
+      // A comment region keeps its world size when the pin moves onto another item or off one.
       const next = { anchor: op.anchor, x: op.x, y: op.y, ...(cur.area ? { area: reanchorArea(cur.area, cur.anchor, op.anchor, (id) => { const it = d.items[id]; return it && { w: it.width, h: it.height }; }) } : {}) };
       checkPosition(d, next);
       if (!same(cur.anchor, next.anchor) || cur.x !== next.x || cur.y !== next.y) touchThread(d, cur, next);

@@ -108,7 +108,25 @@
   --space-6: 24px;
   --space-8: 32px;
 
+  /* Smaller adjustments and existing offsets outside the main grid. */
+  --space-1px: 1px;
+  --space-2px: 2px;
+  --space-3px: 3px;
+  --space-5px: 5px;
+  --space-6px: 6px;
+  --space-7px: 7px;
+  --space-10px: 10px;
+  --space-11px: 11px;
+  --space-14px: 14px;
+  --space-30px: 30px;
+
+  --comment-inset: var(--space-4);
+  --comment-avatar-gap: var(--space-2);
+  --comment-author-inset: calc(var(--avatar-size) + var(--comment-avatar-gap));
+  --presence-skeleton-gap: 6%;
+
   /* Size */
+  --avatar-size: 22px;
   --control-sm: 24px;
   --control-md: 28px;
   --control-lg: 32px;

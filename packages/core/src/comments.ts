@@ -19,7 +19,7 @@ export function positionAt(world: Point, on: { readonly itemId: ItemId; readonly
   return { anchor: { kind: "item", itemId: on.itemId }, x: clamp01(round((world.x - r.x) / r.w, 6)), y: clamp01(round((world.y - r.y) / r.h, 6)) };
 }
 
-/** World rect of a thread's circled region. null without an area, or while its item is missing from `rectOf`. */
+/** World rect of a thread's comment region. null without an area, or while its item is missing from `rectOf`. */
 export function threadArea(p: ThreadPosition, rectOf: (id: ItemId) => Rect | undefined): Rect | null {
   if (!p.area) return null;
   const at = threadPoint(p, rectOf);
@@ -37,7 +37,7 @@ export function areaAt(world: Rect, on: { readonly itemId: ItemId; readonly rect
   return { ...at, area: { w: clamp01(round(Math.min(world.w, r.x + r.w - world.x) / r.w, 6)), h: clamp01(round(Math.min(world.h, r.y + r.h - world.y) / r.h, 6)) } };
 }
 
-/** A circled area moved from one anchor to another, keeping its world size. Unchanged while either item's size is unknown. */
+/** A comment area moved from one anchor to another, keeping its world size. Unchanged while either item's size is unknown. */
 export function reanchorArea(area: ThreadArea, from: ThreadAnchor, to: ThreadAnchor, sizeOf: (id: ItemId) => { readonly w: number; readonly h: number } | undefined): ThreadArea {
   const size = (a: ThreadAnchor) => (a.kind === "world" ? { w: 1, h: 1 } : sizeOf(a.itemId));
   const a = size(from), b = size(to);
