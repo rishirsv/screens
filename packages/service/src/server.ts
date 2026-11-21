@@ -279,14 +279,14 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
   // Pictures of objects whose content was saved without a load check (piece edits on script-free objects), or crops.
   // Rendered on demand, keyed by content and size, and kept out of the document: a poster is never a new revision.
   const posterCache = new Map<string, Promise<PosterAnswer>>();
-  function objectPoster(screenId: string, itemId: string, pieces: readonly string[] = [], contentVersion?: string): Promise<PosterAnswer> {
+  function objectPoster(screenId: string, itemId: string, pieces: readonly string[] = [], contentVersion?: string, atCurrentSize = false): Promise<PosterAnswer> {
     const it = getDoc(screenId)?.items[itemId];
     if (!it || it.kind !== "html-snapshot") return Promise.reject(codeError("not-found", `${itemId} is not an object in Screen ${screenId}`));
     // A picture of exactly the version asked for, or none: never a later one under an earlier edit's result.
     if (contentVersion !== undefined && it.contentVersion !== contentVersion)
       return Promise.resolve({ itemId, contentVersion, hash: null, width: 0, height: 0, rect: null, warnings: [{ code: "poster", message: "the object changed since this version; get_poster shows the current one" }] });
     const clip = [...new Set(pieces)].filter((p) => /^[a-z][a-z0-9-]{0,23}$/.test(p)).sort();
-    if (!clip.length && it.posterHash) return Promise.resolve({ itemId, contentVersion: it.contentVersion, hash: it.posterHash, width: it.width, height: it.height, rect: null, warnings: [] });
+    if (!clip.length && it.posterHash && !atCurrentSize) return Promise.resolve({ itemId, contentVersion: it.contentVersion, hash: it.posterHash, width: it.width, height: it.height, rect: null, warnings: [] });
     // The pixel cap depends on the layout, so a slide never reuses a canvas object's smaller picture of the same content.
     const posterPixels = posterPixelsOf(getDoc(screenId)?.layout);
     const key = `${it.contentVersion}:${it.width}x${it.height}:${clip.join(",")}:${posterPixels ?? ""}`;
@@ -573,7 +573,7 @@ export async function serve(opts: ServeOptions = {}): Promise<Registry> {
         const b = lib.readContent(m.hash); if (!b) throw codeError("not-found", "no such content");
         return b.toString("base64");
       }
-      case "poster": return objectPoster(m.screenId, m.itemId, m.pieces, m.contentVersion);
+      case "poster": return objectPoster(m.screenId, m.itemId, m.pieces, m.contentVersion, m.atCurrentSize);
       case "montage": return screenMontage(m.screenId, m.rect, m.maxSize, m.labels ?? true);
       case "readContext": {
         const ctx = latestView(m.screenId, m.app, c.host), others = presence.others(m.screenId, c, m.lane);

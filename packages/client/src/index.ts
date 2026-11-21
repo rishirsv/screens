@@ -40,7 +40,7 @@ export interface OperationHandle { readonly id: string; settled(): Promise<Outco
 export interface ScreenClient {
   readonly transportKind: "websocket" | "app";
   readContent(hash: string): Promise<Uint8Array>;
-  poster(itemId: string, contentVersion?: string): Promise<PosterAnswer>;
+  poster(itemId: string, contentVersion?: string, atCurrentSize?: boolean): Promise<PosterAnswer>;
   readonly screenId: ScreenId;
   get(): ScreenState;
   subscribe(cb: () => void): () => void;
@@ -425,7 +425,8 @@ export function connectService(transport: ServiceTransport): Service {
     };
 
     return {
-      screenId, transportKind: transport.kind, readContent: service.readContent, poster: (itemId, contentVersion) => service.poster(screenId, itemId, undefined, contentVersion),
+      screenId, transportKind: transport.kind, readContent: service.readContent,
+      poster: (itemId, contentVersion, atCurrentSize) => request<PosterAnswer>({ t: "poster", screenId, itemId, contentVersion, atCurrentSize }),
       get: () => state,
       subscribe: (cb) => { subs.add(cb); return () => subs.delete(cb); },
       submit: (op, files) => submitWith(newId(), op, files),

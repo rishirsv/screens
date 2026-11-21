@@ -86,4 +86,4 @@ expect last.status=committed doc.@A.poster=null last.poster=null last.warnings.0
 - The check runs before the Screen's commit queue, so a slow page never delays a drag. A snapshot can commit after an edit sent while it loaded.
 - `fault no-browser` takes the same branch as a failed Chrome launch. A machine with no Chrome at all is an environment check this fault does not replace.
 - A page that throws an uncaught error commits with a `script-error` warning, but the canvas then hides its live frame and shows only the poster.
-- The poster is captured at the item's size when it is checked. Resizing an item later does not re-render it.
+- The stored poster uses the item's size at load check. If its proportions no longer fit a resized board, the canvas requests a preview at the current size for zoom.

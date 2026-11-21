@@ -364,24 +364,39 @@ const FrameView = memo(function FrameView({ rt, item, p, z, live, load, gen, fra
   const bridge = rt.client.transportKind === "app";
   const savedItem = rt.client.get().committed?.items[item.id];
   const [srcdoc, setSrcdoc] = useState<{ version: string; html: string } | null>(null);
-  const [contentUrl, setContentUrl] = useState<string | null>(null);
-  const [renderedPoster, setRenderedPoster] = useState<{ version: string; hash: string } | null>(null);
-  const [shownPoster, setShownPoster] = useState<string | null>(null);
+  const [content, setContent] = useState<{ hash: string; url: string } | null>(null);
+  const [renderedPoster, setRenderedPoster] = useState<{ key: string; hash: string } | null>(null);
+  const [loadedPoster, setLoadedPoster] = useState<{ src: string; width: number; height: number } | null>(null);
+  const saved = savedItem?.kind === "html-snapshot" && savedItem.contentVersion === item.contentVersion ? savedItem : null;
+  const posterKey = saved ? `${saved.contentVersion}:${saved.width}x${saved.height}` : null;
+  const sizedHash = renderedPoster?.key === posterKey ? renderedPoster.hash : null;
+  const imageHash = item.kind === "reference-image" ? item.assetHash : sizedHash ?? item.posterHash;
+  const contentUrl = content?.hash === imageHash ? content.url : null;
+  const posterSrc = imageHash ? (bridge ? contentUrl : `/content/${imageHash}`) : !bridge && saved
+    ? `/poster/${rt.client.screenId}/${item.id}/${saved.contentVersion}?s=${saved.width}x${saved.height}` : null;
+  // Allow for rounding to a whole image pixel when comparing a reduced poster with its frame.
+  const posterLoaded = loadedPoster !== null && loadedPoster.src === posterSrc;
+  const posterFits = posterLoaded && Math.abs(loadedPoster.width * item.height - loadedPoster.height * item.width) <= Math.max(item.width, item.height);
+  // A stored poster can predate a resize. Prepare a matching picture once the board is live, outside the gesture.
+  const needsSizedPoster = live && !page && item.posterHash !== null && posterLoaded && !posterFits &&
+    saved?.width === item.width && saved.height === item.height;
   useEffect(() => {
-    if (!bridge || item.kind !== "html-snapshot" || item.posterHash || !item.contentVersion || savedItem?.kind !== "html-snapshot" || savedItem.contentVersion !== item.contentVersion) return;
+    if (!posterKey || !item.contentVersion || sizedHash || !(needsSizedPoster || (bridge && !item.posterHash))) return;
     let active = true;
     const start = opening?.now();
-    rt.client.poster(item.id, item.contentVersion).then((p) => { opening?.duration("poster.answer", start, { itemId: item.id, hash: p.hash }); if (active && p.hash) setRenderedPoster({ version: p.contentVersion, hash: p.hash }); }).catch(() => {});
+    rt.client.poster(item.id, item.contentVersion, needsSizedPoster).then((p) => {
+      opening?.duration("poster.answer", start, { itemId: item.id, hash: p.hash });
+      if (active && p.hash) setRenderedPoster({ key: posterKey, hash: p.hash });
+    }).catch(() => {});
     return () => { active = false; };
-  }, [bridge, item.id, item.kind, item.posterHash, item.contentVersion, savedItem, rt]);
-  const imageHash = item.kind === "reference-image" ? item.assetHash : item.posterHash ?? (renderedPoster?.version === item.contentVersion ? renderedPoster.hash : null);
+  }, [bridge, item.id, item.posterHash, item.contentVersion, posterKey, sizedHash, needsSizedPoster, rt]);
   useEffect(() => {
-    if (!bridge || !imageHash || (item.kind === "reference-image" && item.sync !== "committed")) { setContentUrl(null); return; }
+    if (!bridge || !imageHash || (item.kind === "reference-image" && item.sync !== "committed")) { setContent(null); return; }
     let active = true;
     const start = opening?.now();
     rt.client.readContent(imageHash).then((bytes) => {
       opening?.duration("poster.bytes", start, { itemId: item.id, bytes: bytes.byteLength });
-      if (active) { const encode = opening?.now(); const url = imageDataUrl(bytes); opening?.duration("poster.data-url", encode, { itemId: item.id, bytes: bytes.byteLength }); setContentUrl(url); }
+      if (active) { const encode = opening?.now(); const url = imageDataUrl(bytes); opening?.duration("poster.data-url", encode, { itemId: item.id, bytes: bytes.byteLength }); setContent({ hash: imageHash, url }); }
     }).catch(() => { opening?.mark("poster.failed", { itemId: item.id }); });
     return () => { active = false; };
   }, [bridge, imageHash, item.kind, item.sync, rt]);
@@ -406,10 +421,6 @@ const FrameView = memo(function FrameView({ rt, item, p, z, live, load, gen, fra
   let surface: ReactNode = null, current: HostSource | null = null;
   if (item.kind === "reference-image" && item.assetHash) surface = <img src={(item.sync !== "committed" && rt.localImage(item.assetHash)) || (bridge ? contentUrl ?? undefined : `/content/${item.assetHash}`)} alt="" draggable={false} />;
   else {
-    // An object saved without a load check has no stored poster: the service renders one for its content on request.
-    const saved = rt.client.get().committed?.items[item.id];
-    const posterSrc = imageHash ? (bridge ? contentUrl : `/content/${imageHash}`) : !bridge && item.contentVersion && saved?.kind === "html-snapshot" && saved.contentVersion === item.contentVersion
-      ? `/poster/${rt.client.screenId}/${item.id}/${item.contentVersion}?s=${saved.width}x${saved.height}` : null;
     const key = `${item.contentVersion}:${gen}`;
     const source: HostSource | null = bridge ? (live && srcdoc?.version === item.contentVersion ? { key, srcDoc: srcdoc.html } : null)
       : live && frameOrigin && frameCapability && item.contentVersion ? { key, src: `${frameOrigin}/host/${rt.client.screenId}/${item.id}/${item.contentVersion}?gen=${gen}&cap=${frameCapability}` } : null;
@@ -422,10 +433,16 @@ const FrameView = memo(function FrameView({ rt, item, p, z, live, load, gen, fra
       {...(h.srcDoc !== undefined ? { sandbox: "allow-scripts", srcDoc: h.srcDoc } : { src: h.src })}
       style={{ opacity: !top || load === "ready" ? 1 : 0, pointerEvents: top && p.input === "page" ? "auto" : "none", transition: swapping ? "none" : undefined }} />;
     const shown = load === "ready" || old !== null;
-    const poster = posterSrc ? <img key={posterSrc} src={posterSrc} alt="" draggable={false} style={{ opacity: shown ? 0 : 1 }} onLoad={() => { opening?.mark("poster.loaded", { itemId: item.id }); setShownPoster(posterSrc); }} onError={(e) => { opening?.mark("poster.failed", { itemId: item.id }); e.currentTarget.style.visibility = "hidden"; }}
+    const zoomPoster = current !== null && posterFits && p.input === "shield" && !p.focused && !page;
+    const poster = posterSrc ? <img key={posterSrc} src={posterSrc} alt="" draggable={false} data-zoom-poster={zoomPoster ? "" : undefined} style={{ opacity: shown ? 0 : 1 }}
+      onLoad={(e) => {
+        opening?.mark("poster.loaded", { itemId: item.id });
+        setLoadedPoster({ src: posterSrc, width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight });
+      }}
+      onError={(e) => { opening?.mark("poster.failed", { itemId: item.id }); e.currentTarget.style.visibility = "hidden"; setLoadedPoster(null); }}
       ref={(el) => { if (el && preload && !el.dataset.decoded) void el.decode().then(() => { el.dataset.decoded = ""; }, () => {}); }} /> : null;
     // Until a poster or the live page shows, a pulsing placeholder sits under it, so a frame never reads as a blank page.
-    const waiting = !shown && (!poster || shownPoster !== posterSrc);
+    const waiting = !shown && !posterLoaded;
     surface = <>{waiting && <div className="screens-frame-placeholder" data-waiting={poster ? "poster" : undefined}>{!poster && live && load === "loading" ? <span className="spinner" /> : null}</div>}{poster}{[old && frame(old, false), source && frame(source, true)]}</>;
   }
   useEffect(() => { if (!live) setKept(null); else if (current && current.key !== kept?.key) setKept(current); }, [live, current?.key]);

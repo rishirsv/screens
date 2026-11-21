@@ -15,6 +15,9 @@ body { background: var(--window); color: var(--text); font: var(--text-md) / var
 .frame-surface:has(> .screens-frame-placeholder[data-waiting]) { background: transparent; }
 .frame-surface > .screens-frame-placeholder[data-waiting] { background: var(--control-active); animation: placeholder-pulse 1.8s ease-in-out infinite; }
 .frame-surface > iframe { transition: opacity var(--duration-frame) var(--ease-standard); }
+/* Scale the loaded poster during zoom. The live page stays mounted and resumes at the same scroll position. */
+.world[data-moving="zoom"] .frame-surface > [data-zoom-poster] { opacity: 1 !important; }
+.world[data-moving="zoom"] .frame-surface > [data-zoom-poster] ~ iframe { visibility: hidden; }
 .frame-title .screens-mini-spinner { width: 10px; height: 10px; border-width: 1.5px; flex: none; }
 .frame.has-actions > .frame-title { width: max(0px, calc(100% * var(--zoom, 1) - 30px)); }
 /* In a dense overview, keep captions inside their own frames instead of the gap between rows. */

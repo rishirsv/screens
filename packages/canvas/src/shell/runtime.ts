@@ -225,6 +225,7 @@ export class CanvasRuntime {
     this.tracer?.(input, base, nows, ids);
     this.view = r.state;
     for (const e of r.effects) this.run(e);
+    if (this.view.moving && before.camera.z !== this.view.camera.z) this.world?.setAttribute("data-moving", "zoom");
     this.paintCamera();
     const cameraOnly = Object.keys(this.view).every((k) => ["camera", "moving", "wheel", "animation"].includes(k) || (this.view as unknown as Record<string, unknown>)[k] === (before as unknown as Record<string, unknown>)[k]);
     if (!cameraOnly) {
@@ -258,7 +259,7 @@ export class CanvasRuntime {
         return;
       case "settle-timer":
         if (this.settleTimer) clearTimeout(this.settleTimer);
-        this.world?.setAttribute("data-moving", "");
+        this.world?.toggleAttribute("data-moving", true);
         this.settleTimer = setTimeout(() => { this.settleTimer = null; this.world?.removeAttribute("data-moving"); this.dispatch({ type: "camera-settled" }); }, CAMERA_SETTLE_MS);
         return;
       case "blur-active": (document.activeElement as HTMLElement | null)?.blur?.(); this.stage?.focus(); return;

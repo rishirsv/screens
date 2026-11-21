@@ -170,8 +170,8 @@ export function installTestHook(rt: CanvasRuntime): void {
             if (!el) { d[id] = { rendered: false }; continue; }
             const surf = el.querySelector(".frame-surface"), img = surf?.querySelector<HTMLImageElement>(":scope > img"), frame = surf?.querySelector<HTMLIFrameElement>(":scope > iframe");
             // What the person sees in the item: the live page, a decoded poster, the gray placeholder, or a reference image.
-            const surface = el.classList.contains("reference") ? "image" : frame && frame.style.opacity === "1" ? "live"
-              : img && img.style.opacity !== "0" && img.complete && img.naturalWidth > 0 ? "poster" : surf?.querySelector(".screens-frame-placeholder") ? "placeholder" : "none";
+            const surface = el.classList.contains("reference") ? "image" : frame && frame.style.opacity === "1" && getComputedStyle(frame).visibility === "visible" ? "live"
+              : img && img.complete && img.naturalWidth > 0 && getComputedStyle(img).opacity !== "0" && getComputedStyle(img).visibility === "visible" ? "poster" : surf?.querySelector(".screens-frame-placeholder") ? "placeholder" : "none";
             d[id] = { rendered: true, surface, poster: img?.getAttribute("src")?.match(/\/content\/([0-9a-f]{64})$/)?.[1] ?? null, sync: el.querySelector(".screens-mini-spinner") ? "pending" : el.classList.contains("failed") ? "failed" : "saved",
               selected: el.classList.contains("selected") || el.classList.contains("multi-selected"), title: el.querySelector(".frame-title span")?.textContent ?? null,
               visible: getComputedStyle(el).visibility !== "hidden" && el.style.opacity !== "0",

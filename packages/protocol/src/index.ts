@@ -152,8 +152,9 @@ export type ClientMessage =
   /** Restore an exported Screen whose header and files are uploaded. `head` is the header's hash. Answer: ImportOutcome. */
   | { readonly t: "importScreen"; readonly reqId: string; readonly opId: OperationId; readonly head: string }
   | { readonly t: "readContent"; readonly reqId: string; readonly hash: string }
-  /** The current picture of an object, rendered when missing. pieces crops it to their union. Answer: PosterAnswer. */
-  | { readonly t: "poster"; readonly reqId: string; readonly screenId: ScreenId; readonly itemId: ItemId; readonly pieces?: readonly string[]; readonly contentVersion?: string }
+  /** The object's picture. atCurrentSize renders at its committed size when the saved picture no longer fits.
+   *  pieces crops it to their union. Answer: PosterAnswer. */
+  | { readonly t: "poster"; readonly reqId: string; readonly screenId: ScreenId; readonly itemId: ItemId; readonly pieces?: readonly string[]; readonly contentVersion?: string; readonly atCurrentSize?: boolean }
   /** One overview image of a Screen from its stored pictures, with a legend. Answer: MontageAnswer. */
   | { readonly t: "montage"; readonly reqId: string; readonly screenId: ScreenId; readonly rect?: Rect; readonly maxSize?: number; readonly labels?: boolean }
   | { readonly t: "transient"; readonly screenId: ScreenId; readonly gestureId: string; readonly rects: Readonly<Record<ItemId, Placement>> | null }

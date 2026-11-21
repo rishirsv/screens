@@ -7,6 +7,7 @@ A person pans with Hand, Shift-drag, the middle button or the wheel. They zoom w
 - `cam-pan`: Hand, Shift-drag and the wheel pan by the screen delta, with no revision.
 - `minimap`: the map is off by default. Turn it on to see the canvas and navigate by click or drag. The choice survives a reload.
 - `cam-zoom`: zoom out and in around the centre; Cmd+0 goes to 100%; Fit all frames everything and turns auto-fit back on.
+- `zoom-preview`: background boards use a preview at their current size during zoom. The selected board stays live.
 - `focus`: the Focus action, the toolbar toggle, or the agent's `focus_item` fits one frame and hides the others. The toggle, Exit focus, or Escape returns.
 - `focus-wheel`: in focus with Move, the wheel over the live page pans the camera, as Hand does. A scroll area inside the page keeps the wheel while it can still scroll.
 - `focus-large`: a 40-screen board opens at a readable zoom at the top, scrolls to both ends without leaving focus, hides other objects and restores the previous camera on exit.
@@ -59,6 +60,23 @@ wheel 0,-100 --cmd
 expect view.camera.z>1 view.autoFit=false
 fit
 expect view.autoFit=true
+```
+
+```screens id=zoom-preview
+add_object title=Selected files=fixture:plain x=0 y=0 width=390 height=300 as=@A
+add_object title=Background files=fixture:plain x=440 y=0 width=390 height=300 as=@B
+arrange_items items='[{"itemId":"@B","width":390,"height":450}]'
+fit
+click @A.title
+wait dom.@B.poster!=doc.@B.poster dom.@B.poster!=null
+expect frames.@A.input=page frames.@B.input=shield dom.@A.surface=live dom.@B.surface=live
+mark
+wheel 0,-8 at @B --pinch --no-settle
+wait dom.@B.surface=poster dom.@A.surface=live frames.@B.load=ready timeout=1s
+settle
+expect dom.@B.surface=live frames.@B.gen=+0 doc.rev=+0 storage.rev=doc.rev
+wheel 0,8 at @B --no-settle
+expect dom.@B.surface=live
 ```
 
 ```screens id=minimap
