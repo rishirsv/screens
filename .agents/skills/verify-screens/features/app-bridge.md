@@ -8,6 +8,8 @@ A stand-in host relays MCP Apps messages to the real adapter while the canvas ru
 
 - `bridge-claude`: the Claude adapter opens the same interactive library and Screen, relays edits and events, and returns a working browser fallback.
 
+- `bridge-no-relay`: a host that shows the view but delivers none of its tool calls, as the Claude desktop Code tab does for servers that Claude Code starts. The view shows the local URL from the tool result, even when the host sends only its text, and "Open in browser" asks the host to open that URL, which opens the same Screen in the browser canvas.
+
 ## How to get to it (user POV)
 
 - Open the canvas in an MCP Apps host, open a Screen and work with an agent.
@@ -22,6 +24,11 @@ expect last.annotations=true last.focusedWheel=true last.standardsMode=true last
 ```screens id=bridge-claude
 probe bridge-claude
 expect last.resource=true last.libraryInput=true last.annotations=true last.browserTabIgnored=true last.live=true last.teardown=true last.localRequests=0
+```
+
+```screens id=bridge-no-relay
+probe bridge-no-relay
+expect last.fallback=true last.openLink=true last.browserOpened=true last.localRequests=0
 ```
 
 ## Gotchas

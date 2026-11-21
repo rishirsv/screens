@@ -431,3 +431,4 @@ body { background: var(--window); color: var(--text); font: var(--text-md) / var
 @media (max-width: 700px) {
   .screens-comment-popover { left: auto; right: var(--chrome-inset); top: 52px; max-height: calc(100dvh - 52px - var(--shell-height) - 2 * var(--chrome-inset)); }
 }
+.screens-relay-url { pointer-events: auto; user-select: text; -webkit-user-select: text; overflow-wrap: anywhere; }

@@ -1,5 +1,5 @@
 import { verifyFrameMessages } from "./frame-messages.ts";
-import { verifyBridge } from "./bridge-host.ts";
+import { verifyBridge, verifyRelayFallback } from "./bridge-host.ts";
 // The one executor. A session's daemon hosts exactly one Driver, which owns the dev service process, the MCP
 // adapter, an observer connection, the browser and its views, handles, marks, the journal and evidence.
 // Steps run one at a time. Mutations go through MCP or real browser input, never storage.
@@ -450,6 +450,11 @@ export class Driver {
         if (s.suite === "bridge" || s.suite === "bridge-claude") {
           if (!this.screen) throw new StepError("open a Screen before the bridge probe");
           const data = await verifyBridge(this.browser, this.spec.home, this.screen, this.observer, this.devSecret, [this.reg.canvasOrigin, this.reg.frameOrigin], false, s.suite === "bridge-claude" ? "claude" : "codex");
+          return { text: `probe ${s.suite} ${JSON.stringify(data)}`, data };
+        }
+        if (s.suite === "bridge-no-relay") {
+          if (!this.screen) throw new StepError("open a Screen before the relay fallback probe");
+          const data = await verifyRelayFallback(this.browser, this.spec.home, this.screen, this.observer, [this.reg.canvasOrigin, this.reg.frameOrigin]);
           return { text: `probe ${s.suite} ${JSON.stringify(data)}`, data };
         }
         if (s.suite === "thumbnails") {

@@ -3,9 +3,32 @@ import type { ClientMessage, ServerMessage } from "@screens/protocol";
 import type { RequestBody, ServiceTransport } from "./index.ts";
 import { openingRequest, setOpeningTraceSink } from "./diagnostics.ts";
 
+/** The host shows this view but cannot relay its tool calls to Screens. The page offers the local browser canvas instead. */
+export class AppRelayError extends Error {
+  readonly browserUrl: () => Promise<string | null>;
+  readonly openLink: (url: string) => Promise<void>;
+  constructor(message: string, browserUrl: () => Promise<string | null>, openLink: (url: string) => Promise<void>) {
+    super(message);
+    this.browserUrl = browserUrl;
+    this.openLink = openLink;
+  }
+}
+
+/** The local canvas URL from the tool result that opened this view. open_screen returns it in structuredContent and as JSON text. */
+function canvasUrlOf(result: unknown): string | null {
+  const r = result as { structuredContent?: { url?: unknown }; content?: { type?: string; text?: string }[] } | undefined;
+  let url = r?.structuredContent?.url;
+  if (url === undefined) {
+    try { url = (JSON.parse(r?.content?.find((c) => c.type === "text")?.text ?? "") as { url?: unknown }).url; } catch { /* not open_screen's result */ }
+  }
+  return typeof url === "string" && /^http:\/\/127\.0\.0\.1:\d+(\/|$)/.test(url) ? url : null;
+}
+
 export async function connectAppTransport(): Promise<ServiceTransport> {
   const session = crypto.randomUUID();
   let next = 0, closed = false, ending = false, connected = false, cursor = 0, sessionId = "";
+  let canvasUrl: string | null = null;
+  const urlWaiters = new Set<() => void>();
   const waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
   const events = new Set<(m: ServerMessage) => void>();
   const connections = new Set<(up: boolean) => void>();
@@ -24,6 +47,9 @@ export async function connectAppTransport(): Promise<ServiceTransport> {
       else if (e.data.method === "ui/notifications/tool-input") {
         const id = e.data.params?.arguments?.screenId;
         dispatchEvent(new CustomEvent("screens:open-screen", { detail: typeof id === "string" ? id : null }));
+      } else if (e.data.method === "ui/notifications/tool-result") {
+        const url = canvasUrlOf(e.data.params);
+        if (url) { canvasUrl = url; for (const wake of urlWaiters) wake(); }
       }
       return;
     }
@@ -52,9 +78,23 @@ export async function connectAppTransport(): Promise<ServiceTransport> {
     const init = await openingRequest("app.initialize", () => rpc("ui/initialize", { appInfo: { name: "Screens", version: "0.1.0" }, appCapabilities: {}, protocolVersion: "2026-01-26" })) as { protocolVersion?: string };
     if (init.protocolVersion !== "2026-01-26") throw new Error("Unsupported MCP Apps protocol");
     parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/initialized" }, "*");
+  } catch (e) { removeEventListener("message", onMessage); throw e; }
+  try {
     const hello = await openingRequest("app.connect", () => call<{ sessionId: string; since: number }>("_screens_call", { kind: "connect" }));
     sessionId = hello.sessionId; cursor = hello.since; connected = true;
-  } catch (e) { removeEventListener("message", onMessage); throw e; }
+  } catch (e) {
+    // Some hosts render the view but never deliver its tool calls, such as the Claude desktop Code tab for servers
+    // that Claude Code starts. The view keeps listening so the tool result's URL and the open-link answer still arrive.
+    const browserUrl = async () => {
+      if (!canvasUrl) await new Promise<void>((resolve) => { const done = () => { clearTimeout(timer); urlWaiters.delete(done); resolve(); }; const timer = setTimeout(done, 3000); urlWaiters.add(done); });
+      return canvasUrl;
+    };
+    const openLink = async (url: string) => {
+      const r = await rpc("ui/open-link", { url }) as { isError?: boolean } | undefined;
+      if (r?.isError) throw new Error("The host did not open the link");
+    };
+    throw new AppRelayError(e instanceof Error ? e.message : String(e), browserUrl, openLink);
+  }
   const poll = async () => {
     while (!closed && !ending) {
       try {
