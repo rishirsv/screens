@@ -24,6 +24,26 @@ function canvasUrlOf(result: unknown): string | null {
   return typeof url === "string" && /^http:\/\/127\.0\.0\.1:\d+(\/|$)/.test(url) ? url : null;
 }
 
+interface DisplayContext { displayMode?: string; availableDisplayModes?: string[] }
+
+/** A canvas needs more room than a chat row. When the host offers its large view (Claude's side pane, Codex's sidebar
+ *  or thread tab), every new view asks for it, so it also comes back there after the host remounts it. A host that
+ *  grants the request only from a click or key press gets it once more on the first press in the view. After that the
+ *  person's choice stands: moving the view back into the chat is not undone. */
+function preferLargeView(context: DisplayContext | undefined, request: () => Promise<unknown>) {
+  if (!context?.availableDisplayModes?.includes("fullscreen") || context.displayMode === "fullscreen") return;
+  const ask = async () => ((await request().catch(() => undefined)) as { mode?: string } | undefined)?.mode === "fullscreen";
+  void ask().then((granted) => {
+    if (granted) return;
+    const onPress = (e: Event) => {
+      if (!e.isTrusted) return;
+      removeEventListener("pointerdown", onPress, true); removeEventListener("keydown", onPress, true);
+      void ask();
+    };
+    addEventListener("pointerdown", onPress, true); addEventListener("keydown", onPress, true);
+  });
+}
+
 export async function connectAppTransport(): Promise<ServiceTransport> {
   const session = crypto.randomUUID();
   let next = 0, closed = false, ending = false, connected = false, cursor = 0, sessionId = "";
@@ -62,7 +82,9 @@ export async function connectAppTransport(): Promise<ServiceTransport> {
   addEventListener("message", onMessage);
   const rpc = (method: string, params: object) => new Promise<unknown>((resolve, reject) => {
     if (closed) { reject(new Error("connection lost")); return; }
-    const id = ++next; waiting.set(id, { resolve, reject }); parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+    // Hosts that guard a request by a click or key press read the press from this stamp. Chromium only; others ignore it.
+    const id = ++next; waiting.set(id, { resolve, reject });
+    parent.postMessage({ jsonrpc: "2.0", id, method, params }, { targetOrigin: "*", includeUserActivation: true } as WindowPostMessageOptions);
   });
   const call = async <T>(name: string, args: object): Promise<T> => {
     const r = await rpc("tools/call", { name, arguments: { ...args, session } }) as { isError?: boolean; structuredContent?: { value?: T }; content?: { text?: string }[] };
@@ -75,9 +97,10 @@ export async function connectAppTransport(): Promise<ServiceTransport> {
     setOpeningTraceSink(async (trace) => { await call("_screens_opening_trace", { trace }); });
   }
   try {
-    const init = await openingRequest("app.initialize", () => rpc("ui/initialize", { appInfo: { name: "Screens", version: "0.1.0" }, appCapabilities: {}, protocolVersion: "2026-01-26" })) as { protocolVersion?: string };
+    const init = await openingRequest("app.initialize", () => rpc("ui/initialize", { appInfo: { name: "Screens", version: "0.1.0" }, appCapabilities: {}, protocolVersion: "2026-01-26" })) as { protocolVersion?: string; hostContext?: DisplayContext };
     if (init.protocolVersion !== "2026-01-26") throw new Error("Unsupported MCP Apps protocol");
     parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/initialized" }, "*");
+    preferLargeView(init.hostContext, () => rpc("ui/request-display-mode", { mode: "fullscreen" }));
   } catch (e) { removeEventListener("message", onMessage); throw e; }
   try {
     const hello = await openingRequest("app.connect", () => call<{ sessionId: string; since: number }>("_screens_call", { kind: "connect" }));

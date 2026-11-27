@@ -50,9 +50,9 @@ export async function verifyBridge(browser: Browser, home: string, screenId: str
       return answer;
     });
     const host = `<!doctype html><html><head><style>html,body,iframe{margin:0;width:100%;height:100%;border:0}</style></head><body><iframe id="app"></iframe><script>
-const app=document.getElementById('app');app.srcdoc=${JSON.stringify(app).replace(/</g, "\\u003c")};
+window.__displayRequests=[];const app=document.getElementById('app');app.srcdoc=${JSON.stringify(app).replace(/</g, "\\u003c")};
 addEventListener('message',async(e)=>{if(e.source!==app.contentWindow||!e.data||e.data.jsonrpc!=='2.0')return;const m=e.data;if(m.method==='ui/notifications/initialized'){e.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-input',params:{arguments:{screenId:${JSON.stringify(screenId)}}}},'*');return;}if(m.id===undefined||!m.method)return;
-try{let result;if(m.method==='ui/initialize')result={protocolVersion:'2026-01-26',hostCapabilities:{},hostInfo:{name:'screens-cli',version:'1'}};else if(m.method==='tools/call')result=await __appTool(m.params.name,m.params.arguments);else throw Error('unsupported method');e.source.postMessage({jsonrpc:'2.0',id:m.id,result},'*');}catch(err){e.source.postMessage({jsonrpc:'2.0',id:m.id,error:{code:-32603,message:String(err)}},'*');}});
+try{let result;if(m.method==='ui/initialize')result={protocolVersion:'2026-01-26',hostCapabilities:{},hostInfo:{name:'screens-cli',version:'1'},hostContext:{displayMode:'inline',availableDisplayModes:['inline','fullscreen']}};else if(m.method==='ui/request-display-mode'){const pressed=e.userActivation?.isActive===true;window.__displayRequests.push({mode:m.params.mode,pressed});result={mode:pressed?'fullscreen':'inline'};}else if(m.method==='tools/call')result=await __appTool(m.params.name,m.params.arguments);else throw Error('unsupported method');e.source.postMessage({jsonrpc:'2.0',id:m.id,result},'*');}catch(err){e.source.postMessage({jsonrpc:'2.0',id:m.id,error:{code:-32603,message:String(err)}},'*');}});
 </script></body></html>`;
     await page.route("https://screens.test/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: host }));
     await page.goto(`https://screens.test/s/${screenId}`);
@@ -60,6 +60,11 @@ try{let result;if(m.method==='ui/initialize')result={protocolVersion:'2026-01-26
     const appFrame = page.frames().find((f) => f !== page.mainFrame())!;
     await appFrame.waitForFunction(() => !!(window as any).__screensTest, null, { timeout: 15000 });
     if (messagesOnly) return await verifyFrameMessages(appFrame, service, screenId, secret);
+    // The host offers its large view, so the view asks for it at once. This host grants it only from a press.
+    const displayRequests = () => page.evaluate(() => (window as any).__displayRequests as { mode: string; pressed: boolean }[]);
+    await page.waitForFunction(() => (window as any).__displayRequests.length > 0, null, { timeout: 5000 });
+    const firstAsk = (await displayRequests())[0]!;
+    if (firstAsk.mode !== "fullscreen" || firstAsk.pressed) throw new Error(`the view's first display request was ${JSON.stringify(firstAsk)}, not an unpressed fullscreen request`);
     const added = await tool("add_object", { screenId, title: "Bridge probe", x: 0, y: 0, width: 400, height: 300, files: [{ path: "index.html", content: "<!doctype html><html><head><link rel='stylesheet' href='./style.css'></head><body><p data-pid='title'>Before</p><p id='probe'>waiting</p><script>fetch('https://blocked.invalid/').then(()=>probe.textContent='loaded',()=>probe.textContent='blocked')</script></body></html>" }, { path: "style.css", content: "body{background:rgb(1,2,3)}" }] });
     const id = (added.structuredContent as { itemId: string }).itemId;
     if (!id) throw new Error("add_object did not return an item ID");
@@ -78,6 +83,9 @@ try{let result;if(m.method==='ui/initialize')result={protocolVersion:'2026-01-26
     if (await appFrame.locator(".screens-comments-panel").count()) throw new Error("comments panel did not start hidden");
     const note = (await tool("add_comment", { screenId, itemId: id, x: 40, y: 40, text: "Review this spacing" })).structuredContent as { threadId: string };
     await appFrame.locator(`.screens-pin[data-thread="${note.threadId}"]`).click();
+    // The first press after a refused request asks again, with the press stamp the host needs.
+    await page.waitForFunction(() => (window as any).__displayRequests.length > 1, null, { timeout: 5000 });
+    if (!(await displayRequests())[1]!.pressed) throw new Error("the view's second display request carried no press");
     await appFrame.getByRole("textbox", { name: "Reply", exact: true }).fill("Bridge reply");
     await appFrame.getByRole("textbox", { name: "Reply", exact: true }).press("Enter");
     await appFrame.locator(".comment-body").filter({ hasText: "Bridge reply" }).waitFor();
@@ -220,7 +228,8 @@ try{let result;if(m.method==='ui/initialize')result={protocolVersion:'2026-01-26
     for (let i = 0; i < 30; i++) { if (!(await service.inspect(secret)).conns.some((c) => c.sessionId === viewSession)) break; await new Promise((r) => setTimeout(r, 100)); }
     if ((await service.inspect(secret)).conns.some((c) => c.sessionId === viewSession)) throw new Error("teardown left the canvas connected");
     if (requests.length) throw new Error(`page requested local origins: ${requests.join(", ")}`);
-    return { annotations: true, focusedWheel: true, standardsMode: true, browserTabIgnored: true, libraryInput: true, draftProgress: true, leftScreen: true, libraryLinks: true, onDemandCover: true, resource: true, opened: true, viewScreen: true, live: true, pending: true, revision: after.revision, selection: true, reconnect: true, teardown: true, sandbox: "allow-scripts", fetch: "blocked", assets: true, uploadChunks, localRequests: requests.length };
+    if ((await displayRequests()).length !== 2) throw new Error(`the view kept asking for the large view after the host granted it: ${JSON.stringify(await displayRequests())}`);
+    return { largeView: true, annotations: true, focusedWheel: true, standardsMode: true, browserTabIgnored: true, libraryInput: true, draftProgress: true, leftScreen: true, libraryLinks: true, onDemandCover: true, resource: true, opened: true, viewScreen: true, live: true, pending: true, revision: after.revision, selection: true, reconnect: true, teardown: true, sandbox: "allow-scripts", fetch: "blocked", assets: true, uploadChunks, localRequests: requests.length };
   } catch (e) {
     const frame = page.frames().find((f) => f !== page.mainFrame());
     const images = await frame?.evaluate(() => [...document.querySelectorAll("[data-item]")].map((el) => { const img = el.querySelector("img"); return { id: el.getAttribute("data-item"), width: img?.naturalWidth, src: img?.currentSrc.slice(0, 30) }; })).catch(() => null);
