@@ -4,7 +4,10 @@ export type Host = "claude" | "codex" | null;
 
 /** Where the person sees a Screen, per host. */
 export function openingCanvas(host: Host, browserOnly = false): string {
-  if (browserOnly) return "Use the Screens Desktop connector’s open_screen tool for the interactive canvas. Only when it is unavailable or the user wants a browser, use open_screen_in_browser. It returns the local URL for the named Screen or the library. Pass openBrowser: true to launch it. Use browser: true on get_view, focus_item and show_items for this fallback.";
+  if (browserOnly) {
+    const pane = host === "codex" ? "the Codex in-app browser" : host === "claude" ? "the Claude Browser pane" : "your in-app browser";
+    return `Call open_screen_in_browser to open the canvas. It returns the local 127.0.0.1 URL for the named Screen, or for the library when you omit screenId. Open that URL in ${pane}, and keep working there. Pass openBrowser: true only when you have no in-app browser or the person asks for the system browser.${host === "claude" ? " If another Screens connection offers an interactive open_screen tool, use this one instead." : ""}`;
+  }
   // Codex relays the view's calls itself, so the agent never needs the browser fallback there.
   if (host === "codex") return "In Codex, the person opens the Screens view from the sidebar or as a thread tab through More tools. get_view without screenId says which Screen the most recently active Screens view has open: work there. If no view is open, call open_screen (with the screenId you will work on) to open it first.";
   return "Call open_screen to show the interactive MCP App. Omit screenId for the library. If the app cannot display or connect, use the returned 127.0.0.1 URL in a browser, or pass openBrowser: true to launch it. Use browser: true on get_view, focus_item and show_items while working in that fallback.";

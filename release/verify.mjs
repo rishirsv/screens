@@ -109,10 +109,13 @@ try {
   const after = await tool(claude, "get_screen", { screenId: created.id });
   assert.deepEqual(after, before, "Screen did not survive the service restart");
 
-  const fallback = await connect("claude", "--browser-fallback");
-  assert(!fallback.tools.some((t) => t.name === "open_screen" || t.name === "_screens_call"));
-  assert(!fallback.tools.find((t) => t.name === "open_screen_in_browser")?._meta?.ui);
-  assert.equal((await tool(fallback.client, "open_screen_in_browser", { screenId: created.id })).url, opened.url);
+  // The plugins run in browser mode on both hosts: no MCP App view, only the local URL for the in-app browser.
+  for (const host of ["claude", "codex"]) {
+    const browserMode = await connect(host, "--browser");
+    assert(!browserMode.tools.some((t) => t.name === "open_screen" || t.name === "_screens_call"));
+    assert(!browserMode.tools.find((t) => t.name === "open_screen_in_browser")?._meta?.ui);
+    assert.equal((await tool(browserMode.client, "open_screen_in_browser", { screenId: created.id })).url, opened.url);
+  }
 
   for (const local of [false, true]) {
     const market = path.join(temp, local ? "local-market" : "registry-market");
@@ -122,8 +125,7 @@ try {
     for (const [file, host] of [["mcp.json", "codex"], [".mcp.json", "claude"]]) {
       const server = read(path.join(plugin, file)).mcpServers.screens;
       assert.equal(server.command, "npx");
-      const flags = host === "claude" ? ["--browser-fallback"] : [];
-      assert.deepEqual(server.args.slice(-3 - flags.length), ["mcp", "--host", host, ...flags]);
+      assert.deepEqual(server.args.slice(-4), ["mcp", "--host", host, "--browser"]);
       assert(server.args.includes(local ? path.join(temp, packed.filename) : `${expected.name}@${expected.version}`));
     }
     const config = path.join(market, "desktop-test.json");

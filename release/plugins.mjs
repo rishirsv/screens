@@ -1,6 +1,7 @@
 // Stages the installable plugin from plugins/screens into a local marketplace for both hosts, with each host's overlay:
-//   Claude: .claude-plugin/plugin.json and .mcp.json running the pinned package with --host claude.
-//   Codex:  plugin.json and mcp.json, the portable files, running it with --host codex.
+//   Claude: .claude-plugin/plugin.json and .mcp.json running the pinned package with --host claude --browser.
+//   Codex:  plugin.json and mcp.json, the portable files, running it with --host codex --browser.
+// Both open the canvas at its local URL in the host's in-app browser.
 // Usage: node release/plugins.mjs [--marketplace DIR] [--package SPEC]
 //   --package overrides the npm spec the servers run, e.g. a local tarball before it is published.
 
@@ -24,7 +25,7 @@ if (manifest.version !== pkg.version || !server.args.includes(pinned)) throw Err
 const given = arg("--package");
 const spec = given === undefined ? pinned : /^(\.{1,2}\/|\/|~)|\.tgz$/.test(given) ? path.resolve(given.replace(/^~(?=\/)/, os.homedir())) : given;
 // npx runs a tarball or folder through --package; a registry spec runs directly.
-const run = (host) => spec === pinned ? ["-y", pinned, "mcp", "--host", host] : ["-y", "--package", spec, "screens", "mcp", "--host", host];
+const run = (host) => [...(spec === pinned ? ["-y", pinned, "mcp"] : ["-y", "--package", spec, "screens", "mcp"]), "--host", host, "--browser"];
 
 const stage = path.join(root, `.screens-${process.pid}`);
 fs.rmSync(stage, { recursive: true, force: true });
@@ -32,7 +33,7 @@ fs.mkdirSync(root, { recursive: true });
 fs.cpSync(source, stage, { recursive: true });
 const write = (rel, value) => { fs.mkdirSync(path.dirname(path.join(stage, rel)), { recursive: true }); fs.writeFileSync(path.join(stage, rel), JSON.stringify(value, null, 2) + "\n"); };
 write("mcp.json", { ...portable, mcpServers: { screens: { ...server, args: run("codex") } } });
-write(".mcp.json", { mcpServers: { screens: { command: server.command, args: [...run("claude"), "--browser-fallback"] } } });
+write(".mcp.json", { mcpServers: { screens: { command: server.command, args: run("claude") } } });
 write(".claude-plugin/plugin.json", { name: manifest.name, version: manifest.version, description: manifest.description, author: manifest.author });
 
 const dest = path.join(root, "screens");

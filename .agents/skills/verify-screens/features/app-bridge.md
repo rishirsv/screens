@@ -35,4 +35,4 @@ expect last.fallback=true last.openLink=true last.browserOpened=true last.localR
 
 ## Gotchas
 
-- The CLI uses a stand-in host for automated relay checks. In Codex, open Screens from the sidebar or as a chat tab.
+- The CLI uses a stand-in host for automated relay checks. It runs the adapter without `--browser`, which is the Claude Desktop connector's mode. The Claude Code and Codex plugins pass `--browser`: they register no MCP App view and open the canvas in the host's in-app browser. `npm run release:verify` checks that mode.

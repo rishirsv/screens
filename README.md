@@ -28,7 +28,7 @@ codex plugin marketplace add "$HOME/.local/share/screens/marketplace"
 codex plugin add screens@screens-local
 ```
 
-Open Screens from the sidebar or as a chat tab.
+Ask the agent to open a Screen. It opens the canvas in the Codex in-app browser.
 
 ### Claude Code
 
@@ -38,13 +38,9 @@ claude plugin install screens@screens-local
 node release/claude-desktop.mjs
 ```
 
-Restart Claude Desktop after registration. In a Claude Desktop chat, `open_screen` opens the interactive canvas. It opens the library by default or a specific Screen when given its ID.
+In Claude Code, the agent opens the canvas in the Browser pane with `open_screen_in_browser`. The tool returns the local URL of the library, or of a specific Screen when given its ID. Pass `openBrowser: true` to launch the system browser instead.
 
-Claude Desktop registers the interactive `open_screen` tool. Its connection forwards actions from the widget to the local service. Code tab sessions do not receive this registration. The Claude Code marketplace plugin supplies agent tools and `open_screen_in_browser` for the Code tab, terminal sessions or browser fallback. The local release installer (`--install`) also updates the Desktop registration.
-
-The Code tab can show a widget from a server that Claude Code starts, but it does not deliver the widget's actions to that server. In that case the widget shows the local URL and an Open in browser button.
-
-In Claude Code, use the returned local URL when a browser is needed. Pass `openBrowser: true` to launch the system browser explicitly. In Codex, the agent works in the Screens view that you open from the sidebar or a chat tab.
+`node release/claude-desktop.mjs` registers the interactive `open_screen` tool for Claude Desktop chats. Restart Claude Desktop after registration. In a chat, `open_screen` shows the canvas as a widget. The local release installer (`--install`) also updates this registration.
 
 Try this prompt:
 

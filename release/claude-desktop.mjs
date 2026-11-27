@@ -11,7 +11,7 @@ const desktopDirectory = process.platform === "darwin" ? path.join(os.homedir(),
 
 export function installDesktopWidget(market, configFile = path.join(desktopDirectory, "claude_desktop_config.json")) {
   const plugin = JSON.parse(fs.readFileSync(path.join(market, "screens/.mcp.json"), "utf8")).mcpServers.screens;
-  const args = plugin.args.filter(arg => arg !== "--browser-fallback");
+  const args = plugin.args.filter(arg => arg !== "--browser");
   const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, "utf8")) : {};
   const servers = config.mcpServers ??= {};
   const existing = servers.screens;

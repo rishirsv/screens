@@ -19,8 +19,9 @@ import { MONTAGE_SIZE, MONTAGE_SIZE_MAX, MONTAGE_SIZE_MIN, docRects, imageInfo, 
 const hostArg = process.argv.indexOf("--host");
 const host: Host = hostArg > 0 && (process.argv[hostArg + 1] === "claude" || process.argv[hostArg + 1] === "codex") ? process.argv[hostArg + 1] as Host : null;
 
-// The marketplace connection in Claude Code can render a card without forwarding its tool calls.
-const browserOnly = host === "claude" && process.argv.includes("--browser-fallback");
+// The Claude Code and Codex plugins pass --browser: the canvas opens at its local URL in the host's in-app browser,
+// and no MCP App view is registered. Without it, open_screen shows the interactive MCP App (the Claude Desktop connector).
+const browserOnly = process.argv.includes("--browser");
 const openTool = browserOnly ? "open_screen_in_browser" : "open_screen";
 
 const INSTRUCTIONS = `Screens is a local canvas of HTML objects and reference images that a person and you edit together.
@@ -308,7 +309,7 @@ server.registerTool("get_guide", {
 
 const appMeta = { _meta: { ui: { resourceUri: APP_URI }, "openai/ui": { entrypoints: [{ type: "global" }, { type: "thread" }] } } };
 
-if (host === "codex") {
+if (host === "codex" && !browserOnly) {
   // Codex shows the view in its sidebar or a thread tab. The agent works on the Screen that view has open, so this
   // tool returns no browser URL and offers no browser launch.
   server.registerTool("open_screen", {
@@ -325,7 +326,7 @@ if (host === "codex") {
   description: openingCanvas(host, browserOnly),
   inputSchema: {
     screenId: screenId.optional(),
-    openBrowser: z.boolean().optional().describe("Launch the system browser when the embedded view is unavailable or a browser is requested"),
+    openBrowser: z.boolean().optional().describe(browserOnly ? "Launch the system browser instead of returning the URL for your in-app browser" : "Launch the system browser when the embedded view is unavailable or a browser is requested"),
   },
   ...(browserOnly ? {} : appMeta),
 }, async ({ screenId, openBrowser }) => {
@@ -671,6 +672,8 @@ server.registerTool("set_status", {
 });
 
 function viewSurface(browser?: boolean) {
+  // In browser mode the person only ever has browser views of the canvas.
+  if (browserOnly) browser = true;
   if ((browser || host) && !reg?.scopedViews) throw new Error("This running Screens service predates host-specific view controls. Stop the service with screens stop when current edits have saved, then retry.");
   if (browser) return false;
   return host ? true : undefined;
@@ -863,7 +866,7 @@ server.registerTool("op_status", { description: "Outcome by opId: accepted, comm
   const listTools = handlers.get("tools/list")!;
   handlers.set("tools/list", async (request, extra) => {
     const result = await listTools(request, extra);
-    return { ...result, tools: result.tools.map(tool => tool.name === "open_screen" ? { ...tool, icons: sidebarIcons } : tool) };
+    return { ...result, tools: result.tools.map(tool => tool.name === openTool ? { ...tool, icons: sidebarIcons } : tool) };
   });
 }
 await server.connect(new StdioServerTransport());
